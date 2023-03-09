@@ -345,11 +345,8 @@ struct Converter<
       const UnscaledShortDecimal& v,
       bool& nullOutput,
       const TypePtr& fromType) {
-    VELOX_NYI();
-    //  auto decimalType = fromType->asShortDecimal();
-    //  return -1;
-    //  // return DecimalUtil::toDoubleValue(v.unscaledValue(),
-    //  decimalType.scale());
+    auto decimalType = fromType->asShortDecimal();
+    return DecimalUtil::toDoubleValue(v.unscaledValue(), decimalType.scale());
   }
 
   static T cast(
