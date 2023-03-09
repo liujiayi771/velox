@@ -353,10 +353,8 @@ struct Converter<
       const UnscaledLongDecimal& v,
       bool& nullOutput,
       const TypePtr& fromType) {
-    VELOX_NYI();
-    // auto decimalType = fromType->asLongDecimal();
-    //  return DecimalUtil::toDoubleValue(v.unscaledValue(),
-    //  decimalType.scale());
+    auto decimalType = fromType->asLongDecimal();
+    return DecimalUtil::toDoubleValue(v.unscaledValue(), decimalType.scale());
   }
 
   template <typename From>
