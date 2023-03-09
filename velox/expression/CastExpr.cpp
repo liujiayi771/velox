@@ -166,7 +166,7 @@ void applyDoubleToDecimalCastKernel(
       castResult->asUnchecked<FlatVector<TOutput>>()->mutableRawValues();
   const auto& toPrecisionScale = getDecimalPrecisionScale(*toType);
   context.applyToSelectedNoThrow(rows, [&](vector_size_t row) {
-    auto rescaledValue = DecimalUtil::rescaleBigint<TOutput>(
+    auto rescaledValue = DecimalUtil::rescaleDouble<TOutput>(
         sourceVector->valueAt(row),
         toPrecisionScale.first,
         toPrecisionScale.second);

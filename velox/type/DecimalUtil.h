@@ -83,6 +83,46 @@ class DecimalUtil {
   }
 
   template <typename TOutput>
+  inline static std::optional<TOutput> rescaleDouble(
+      const double inputValue,
+      const int toPrecision,
+      const int toScale) {
+    static_assert(
+        std::is_same_v<TOutput, UnscaledShortDecimal> ||
+        std::is_same_v<TOutput, UnscaledLongDecimal>);
+
+    // Multiply decimal with the scale
+    auto unscaled = inputValue * DecimalUtil::kPowersOfTen[toScale];
+    bool isOverflow = std::isnan(unscaled);
+
+    unscaled = std::round(unscaled);
+
+    // convert scaled double to int128
+    int32_t sign = unscaled < 0 ? -1 : 1;
+    auto unscaled_abs = std::abs(unscaled);
+
+    uint64_t high_bits = static_cast<uint64_t>(std::ldexp(unscaled_abs, -64));
+    uint64_t low_bits = static_cast<uint64_t>(
+        unscaled_abs - std::ldexp(static_cast<double>(high_bits), 64));
+
+    auto rescaledValue = buildInt128(high_bits, low_bits);
+
+    if (rescaledValue < -DecimalUtil::kPowersOfTen[toPrecision] ||
+        rescaledValue > DecimalUtil::kPowersOfTen[toPrecision] || isOverflow) {
+      VELOX_USER_FAIL(
+          "Cannot cast BIGINT '{}' to DECIMAL({},{})",
+          inputValue,
+          toPrecision,
+          toScale);
+    }
+    if constexpr (std::is_same_v<TOutput, UnscaledShortDecimal>) {
+      return UnscaledShortDecimal(static_cast<int64_t>(rescaledValue * sign));
+    } else {
+      return UnscaledLongDecimal(static_cast<int128_t>(rescaledValue * sign));
+    }
+  }
+
+  template <typename TOutput>
   inline static std::optional<TOutput> rescaleBigint(
       const int128_t inputValue,
       const int toPrecision,
@@ -381,10 +421,7 @@ class DecimalUtil {
     return out;
   }
 
-  /*
-   *  This method refer to the BigInterger#compactValFor() method in Java side.
-   */
-  inline static double compactValFor(int128_t value) {
+  inline static double toDoubleValue(int128_t value, uint8_t scale) {
     int128_t new_value;
     int32_t sig;
     if (value > 0) {
@@ -405,60 +442,11 @@ class DecimalUtil {
     new_high = new_value >> 64;
     new_low = (uint64_t)orignal_value;
 
-    std::vector<uint32_t> mag;
-    int32_t size;
-    mag = ConvertMagArray(new_high, new_low, &size);
+    double unscaled = static_cast<double>(new_low) +
+        std::ldexp(static_cast<double>(new_high), 64);
 
-    std::vector<int32_t> final_mag;
-    for (auto i = 0; i < size; i++) {
-      final_mag.push_back(mag[i]);
-    }
-
-    int32_t len = final_mag.size();
-    if (len == 0)
-      return 0;
-    int d = final_mag[0];
-    if (len > 2 || (len == 2 && d < 0))
-      return kLongMinValue; // long min value
-
-    long u = (len == 2)
-        ? (((long)final_mag[1] & kLONG_MASK) + (((long)d) << 32))
-        : (((long)d) & kLONG_MASK);
-    return (sig < 0) ? -u : u;
-  }
-
-  inline static double toDoubleValue(int128_t value, uint8_t scale) {
-    auto intCompact = compactValFor(value);
-
-    if (intCompact != kLongMinValue) {
-      if (scale == 0) {
-        return (double)intCompact;
-      } else {
-        /*
-         * If both intCompact and the scale can be exactly
-         * represented as double values, perform a single
-         * double multiply or divide to compute the (properly
-         * rounded) result.
-         */
-        if (abs(intCompact) < 1L << 52) {
-          // Don't have too guard against
-          // Math.abs(MIN_VALUE) because of outer check
-          // against INFLATED.
-          if (scale > 0 &&
-              scale < sizeof(double10pow) / sizeof(double10pow[0])) {
-            return (double)intCompact / double10pow[scale];
-          } else if (
-              scale < 0 &&
-              scale > sizeof(double10pow) / sizeof(double10pow[0])) {
-            return (double)intCompact * double10pow[-scale];
-          }
-        }
-      }
-    }
-    return -1;
-    // Somewhat inefficient, but guaranteed to work.
-    // TODO :: implement toString first;
-    // return Double.parseDouble(this.toString());
+    // scale double.
+    return (unscaled * sig) / DecimalUtil::kPowersOfTen[scale];
   }
 
   inline static int128_t toInt128(
