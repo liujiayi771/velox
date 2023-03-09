@@ -1756,7 +1756,19 @@ void SubstraitVeloxPlanConverter::setFilterMap(
       }
       setColInfoMap<int>(functionName, colIdxVal, val, reverse, colInfoMap);
       break;
-  
+    case TypeKind::SHORT_DECIMAL:
+      if (substraitLit) {
+        auto decimal = substraitLit.value().decimal().value();
+        auto precision = substraitLit.value().decimal().precision();
+        auto scale = substraitLit.value().decimal().scale();
+        int128_t decimalValue = DecimalUtil::toInt128(
+            decimal.c_str(), decimal.size(), precision, scale);
+        auto type = SHORT_DECIMAL(precision, scale);
+        val = variant::shortDecimal((int64_t)decimalValue, type);
+      }
+      setColInfoMap<UnscaledShortDecimal>(
+          functionName, colIdxVal, val, reverse, colInfoMap);
+      break;
     default:
       VELOX_NYI(
           "Subfield filters creation not supported for input type '{}'",
