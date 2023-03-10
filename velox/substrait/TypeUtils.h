@@ -83,9 +83,9 @@ struct RangeTraits<TypeKind::DATE> {
 
 template <>
 struct RangeTraits<TypeKind::SHORT_DECIMAL> {
-  using RangeType = common::BigintRange;
-  using MultiRangeType = common::BigintMultiRange;
-  using NativeType = int64_t;
+  using RangeType = common::ShortDecimalRange;
+  using MultiRangeType = common::ShortDecimalMultiRange;
+  using NativeType = UnscaledShortDecimal;
 };
 
 #endif /* RANGETRAITS_H */
