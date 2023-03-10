@@ -316,7 +316,7 @@ std::string SubstraitParser::findVeloxFunction(
   getSubFunctionTypes(funcSpec, types);
   bool isDecimal = false;
   for (auto& type : types) {
-    if (type == "dec") {
+    if (type.find("dec") != std::string::npos) {
       isDecimal = true;
       break;
     }
