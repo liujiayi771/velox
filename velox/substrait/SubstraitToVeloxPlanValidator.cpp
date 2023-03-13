@@ -781,6 +781,7 @@ bool SubstraitToVeloxPlanValidator::validate(
       "sum",
       "count",
       "avg",
+      "dec_avg",
       "min",
       "max",
       "stddev_samp",
