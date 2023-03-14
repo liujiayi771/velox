@@ -14,18 +14,12 @@
  * limitations under the License.
  */
 
-#include "velox/functions/sparksql/aggregates/Register.h"
-#include "velox/functions/sparksql/aggregates/BloomFilterAggAggregate.h"
-#include "velox/functions/sparksql/aggregates/DecimalAggregate.h"
-#include "velox/functions/sparksql/aggregates/DecimalSumAggregate.h"
-#include "velox/functions/sparksql/aggregates/LastAggregate.h"
+#pragma once
+
+#include <string>
 
 namespace facebook::velox::functions::sparksql::aggregates {
 
-void registerAggregateFunctions(const std::string& prefix) {
-  aggregates::registerLastAggregate(prefix + "last");
-  aggregates::registerBloomFilterAggAggregate(prefix + "bloom_filter_agg");
-  aggregates::registerDecimalAvgAggregate(prefix + "decimal_avg");
-  aggregates::registerDecimalSumAggregate(prefix + "decimal_sum");
-}
+bool registerDecimalSumAggregate(const std::string& name);
+
 } // namespace facebook::velox::functions::sparksql::aggregates
