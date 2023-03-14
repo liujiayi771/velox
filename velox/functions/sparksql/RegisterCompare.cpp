@@ -81,6 +81,13 @@ void registerCompareFunctions(const std::string& prefix) {
       UnscaledShortDecimal>({prefix + "lessthanorequal"});
   registerFunction<LteFunction, bool, UnscaledLongDecimal, UnscaledLongDecimal>(
       {prefix + "lessthanorequal"});
+  registerFunction<
+      EqFunction,
+      bool,
+      UnscaledShortDecimal,
+      UnscaledShortDecimal>({prefix + "equalto"});
+  registerFunction<EqFunction, bool, UnscaledLongDecimal, UnscaledLongDecimal>(
+      {prefix + "equalto"});
 }
 
 } // namespace facebook::velox::functions::sparksql
