@@ -24,6 +24,6 @@ namespace facebook::velox::functions::sparksql::aggregates {
 void registerAggregateFunctions(const std::string& prefix) {
   aggregates::registerLastAggregate(prefix + "last");
   aggregates::registerBloomFilterAggAggregate(prefix + "bloom_filter_agg");
-  aggregates::registerDecimalAvgAggregate(prefix + "dec_avg");
+  aggregates::registerDecimalAvgAggregate(prefix + "decimal_avg");
 }
 } // namespace facebook::velox::functions::sparksql::aggregates
