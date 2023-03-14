@@ -396,8 +396,8 @@ SubstraitVeloxExprConverter::toVeloxExpr(
       auto decimal = substraitLit.decimal().value();
       auto precision = substraitLit.decimal().precision();
       auto scale = substraitLit.decimal().scale();
-      int128_t decimalValue = DecimalUtil::toInt128(
-          decimal.c_str(), decimal.size(), precision, scale);
+      int128_t decimalValue;
+      memcpy(&decimalValue, decimal.c_str(), 16);
       if (precision <= 18) {
         auto type = SHORT_DECIMAL(precision, scale);
         return std::make_shared<core::ConstantTypedExpr>(

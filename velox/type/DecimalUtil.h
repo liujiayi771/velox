@@ -449,42 +449,6 @@ class DecimalUtil {
     return (unscaled * sig) / DecimalUtil::kPowersOfTen[scale];
   }
 
-  inline static int128_t toInt128(
-      const char* data,
-      size_t size,
-      const uint8_t precision,
-      const uint8_t scale) {
-    if (size == 0) {
-      return 0;
-    }
-    bool isNegative = (data[0] == '-');
-    int32_t start = (isNegative || data[0] == '+') ? 1 : 0;
-    int32_t pos = start;
-    int128_t result = 0;
-    size_t integerLen = 0;
-    size_t fractionLen = 0;
-    while (pos < size) {
-      char c = data[pos++];
-      if (c == '.') {
-        integerLen = pos - start;
-        while (pos < size) {
-          char digit = data[pos++];
-          VELOX_DCHECK(isdigit(digit));
-          result = result * 10 + (digit - '0');
-          ++fractionLen;
-        }
-      } else if (isdigit(c)) {
-        result = result * 10 + (c - '0');
-      } else {
-        VELOX_DCHECK(false, "Invalid character at pos {}", pos)
-      }
-    }
-    VELOX_DCHECK((integerLen + fractionLen) <= precision);
-    VELOX_DCHECK(fractionLen <= scale);
-    result = result * DecimalUtil::kPowersOfTen[scale - fractionLen];
-    return (isNegative) ? result * -1 : result;
-  }
-
   static constexpr double double10pow[] = {
       1.0e0,  1.0e1,  1.0e2,  1.0e3,  1.0e4,  1.0e5,  1.0e6,  1.0e7,
       1.0e8,  1.0e9,  1.0e10, 1.0e11, 1.0e12, 1.0e13, 1.0e14, 1.0e15,
