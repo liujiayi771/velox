@@ -1763,8 +1763,8 @@ void SubstraitVeloxPlanConverter::setFilterMap(
         auto decimal = substraitLit.value().decimal().value();
         auto precision = substraitLit.value().decimal().precision();
         auto scale = substraitLit.value().decimal().scale();
-        int128_t decimalValue = DecimalUtil::toInt128(
-            decimal.c_str(), decimal.size(), precision, scale);
+        int128_t decimalValue;
+        memcpy(&decimalValue, decimal.c_str(), 16);
         auto type = SHORT_DECIMAL(precision, scale);
         val = variant::shortDecimal((int64_t)decimalValue, type);
       }
@@ -1783,7 +1783,6 @@ void SubstraitVeloxPlanConverter::createNotEqualFilter(
     variant notVariant,
     bool nullAllowed,
     std::vector<std::unique_ptr<FilterType>>& colFilters) {
-
   using NativeType = typename RangeTraits<KIND>::NativeType;
   using RangeType = typename RangeTraits<KIND>::RangeType;
 
