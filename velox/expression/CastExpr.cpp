@@ -130,14 +130,14 @@ void applyDecimalCastKernel(
   });
 }
 
-template <typename TOutput>
+template <typename From, typename TOutput>
 void applyBigintToDecimalCastKernel(
     const SelectivityVector& rows,
     const BaseVector& input,
     exec::EvalCtx& context,
     const TypePtr& toType,
     VectorPtr castResult) {
-  auto sourceVector = input.as<SimpleVector<int64_t>>();
+  auto sourceVector = input.as<SimpleVector<From>>();
   auto castResultRawBuffer =
       castResult->asUnchecked<FlatVector<TOutput>>()->mutableRawValues();
   const auto& toPrecisionScale = getDecimalPrecisionScale(*toType);
@@ -551,12 +551,22 @@ VectorPtr CastExpr::applyDecimal(
       }
       break;
     }
-    case TypeKind::BIGINT: {
+    case TypeKind::INTEGER: {
       if (toType->kind() == TypeKind::SHORT_DECIMAL) {
-        applyBigintToDecimalCastKernel<UnscaledShortDecimal>(
+        applyBigintToDecimalCastKernel<int32_t, UnscaledShortDecimal>(
             rows, input, context, toType, castResult);
       } else {
-        applyBigintToDecimalCastKernel<UnscaledLongDecimal>(
+        applyBigintToDecimalCastKernel<int32_t, UnscaledLongDecimal>(
+            rows, input, context, toType, castResult);
+      }
+      break;
+    }
+    case TypeKind::BIGINT: {
+      if (toType->kind() == TypeKind::SHORT_DECIMAL) {
+        applyBigintToDecimalCastKernel<int64_t, UnscaledShortDecimal>(
+            rows, input, context, toType, castResult);
+      } else {
+        applyBigintToDecimalCastKernel<int64_t, UnscaledLongDecimal>(
             rows, input, context, toType, castResult);
       }
       break;
