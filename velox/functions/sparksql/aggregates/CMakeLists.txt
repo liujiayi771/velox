@@ -16,7 +16,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   add_compile_options(-Wno-stringop-overflow)
 endif()
 
-add_library(velox_functions_spark_aggregates LastAggregate.cpp BloomFilterAggAggregate.cpp Register.cpp DecimalAggregate.cpp)
+add_library(velox_functions_spark_aggregates LastAggregate.cpp BloomFilterAggAggregate.cpp Register.cpp DecimalAggregate.cpp DecimalSumAggregate.cpp)
 
 target_link_libraries(velox_functions_spark_aggregates ${FMT} velox_exec
                       velox_expression_functions velox_aggregates velox_vector)
