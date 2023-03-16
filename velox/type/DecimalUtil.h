@@ -45,7 +45,8 @@ class DecimalUtil {
       const int fromPrecision,
       const int fromScale,
       const int toPrecision,
-      const int toScale) {
+      const int toScale,
+      bool nullOnOverflow = false) {
     int128_t rescaledValue = inputValue.unscaledValue();
     auto scaleDifference = toScale - fromScale;
     bool isOverflow = false;
@@ -68,12 +69,16 @@ class DecimalUtil {
     // Check overflow.
     if (rescaledValue < -DecimalUtil::kPowersOfTen[toPrecision] ||
         rescaledValue > DecimalUtil::kPowersOfTen[toPrecision] || isOverflow) {
-      VELOX_USER_FAIL(
-          "Cannot cast DECIMAL '{}' to DECIMAL({},{})",
-          DecimalUtil::toString<TInput>(
-              inputValue, DECIMAL(fromPrecision, fromScale)),
-          toPrecision,
-          toScale);
+      if (nullOnOverflow) {
+        return std::nullopt;
+      } else {
+        VELOX_USER_FAIL(
+            "Cannot cast DECIMAL '{}' to DECIMAL({},{})",
+            DecimalUtil::toString<TInput>(
+                inputValue, DECIMAL(fromPrecision, fromScale)),
+            toPrecision,
+            toScale);
+      }
     }
     if constexpr (std::is_same_v<TOutput, UnscaledShortDecimal>) {
       return UnscaledShortDecimal(static_cast<int64_t>(rescaledValue));
