@@ -23,6 +23,7 @@
 #include "velox/functions/prestosql/StringFunctions.h"
 #include "velox/functions/sparksql/ArraySort.h"
 #include "velox/functions/sparksql/Bitwise.h"
+#include "velox/functions/sparksql/CheckOverflow.h"
 #include "velox/functions/sparksql/CompareFunctionsNullSafe.h"
 #include "velox/functions/sparksql/DateTime.h"
 #include "velox/functions/sparksql/DateTimeFunctions.h"
@@ -163,6 +164,9 @@ void registerFunctions(const std::string& prefix) {
       prefix + "array_sort", arraySortSignatures(), makeArraySort);
   exec::registerStatefulVectorFunction(
       prefix + "sort_array", sortArraySignatures(), makeSortArray);
+
+  exec::registerStatefulVectorFunction(
+      prefix + "check_overflow", checkOverflowSignatures(), makeCheckOverflow);
 
   // Register bloom filter function
   exec::registerStatefulVectorFunction(
