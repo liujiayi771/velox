@@ -19,6 +19,7 @@
 #include "velox/functions/sparksql/aggregates/DecimalAggregate.h"
 #include "velox/functions/sparksql/aggregates/DecimalSumAggregate.h"
 #include "velox/functions/sparksql/aggregates/LastAggregate.h"
+#include "velox/functions/prestosql/aggregates/SumAggregate.h"
 
 namespace facebook::velox::functions::sparksql::aggregates {
 
@@ -26,6 +27,6 @@ void registerAggregateFunctions(const std::string& prefix) {
   aggregates::registerLastAggregate(prefix + "last");
   aggregates::registerBloomFilterAggAggregate(prefix + "bloom_filter_agg");
   aggregates::registerDecimalAvgAggregate(prefix + "decimal_avg");
-  aggregates::registerDecimalSumAggregate(prefix + "decimal_sum");
+  aggregates::registerDecimalSumAggregate<aggregate::prestosql::SumAggregate>(prefix + "decimal_sum");
 }
 } // namespace facebook::velox::functions::sparksql::aggregates
