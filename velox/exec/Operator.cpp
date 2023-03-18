@@ -242,7 +242,6 @@ RowVectorPtr Operator::fillOutput(vector_size_t size, BufferPtr mapping) {
     }
     wrapResults = false;
   }
-
   std::vector<VectorPtr> columns(outputType_->size());
   if (!identityProjections_.empty()) {
     auto input = input_->children();
