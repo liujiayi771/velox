@@ -25,7 +25,7 @@ namespace facebook::velox::functions::sparksql::aggregates {
 template <typename UnscaledType>
 struct DecimalSum {
   UnscaledType sum = UnscaledType(0);
-  int32_t isEmpty{0};
+  int32_t isEmpty{1};
 };
 
 template <
@@ -118,12 +118,12 @@ class DecimalSumAggregate : public exec::Aggregate {
         });
       } else {
         rows.applyToSelected(
-            [&](vector_size_t i) { exec::Aggregate::clearNull(groups[i]); });
+            [&](vector_size_t i) { updateNullValue(groups[i]); });
       }
     } else if (decodedRaw_.mayHaveNulls()) {
       rows.applyToSelected([&](vector_size_t i) {
         if (decodedRaw_.isNullAt(i)) {
-          exec::Aggregate::clearNull(groups[i]);
+          updateNullValue(groups[i]);
           return;
         }
         updateNonNullValue(
@@ -155,7 +155,7 @@ class DecimalSumAggregate : public exec::Aggregate {
         auto totalSum = TAccumulator(value) * numRows;
         updateNonNullValue(group, totalSum);
       } else {
-        exec::Aggregate::clearNull(group);
+        updateNullValue(group);
       }
     } else if (decodedRaw_.mayHaveNulls()) {
       rows.applyToSelected([&](vector_size_t i) {
@@ -163,7 +163,7 @@ class DecimalSumAggregate : public exec::Aggregate {
           updateNonNullValue(
               group, TAccumulator(decodedRaw_.valueAt<TInput>(i)));
         } else {
-          exec::Aggregate::clearNull(group);
+          updateNullValue(group);
         }
       });
     } else if (!exec::Aggregate::numNulls_ && decodedRaw_.isIdentityMapping()) {
@@ -271,6 +271,12 @@ class DecimalSumAggregate : public exec::Aggregate {
     auto decimalSum = accumulator(group);
     decimalSum->sum =
         functions::checkedPlus<TAccumulator>(decimalSum->sum, value);
+    decimalSum->isEmpty = false;
+  }
+
+  inline void updateNullValue(char* group) {
+    auto decimalSum = accumulator(group);
+    decimalSum->isEmpty = decimalSum->isEmpty && true;
   }
 
   inline DecimalSum<TAccumulator>* accumulator(char* group) {
