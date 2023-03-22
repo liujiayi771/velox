@@ -20,7 +20,7 @@
 
 namespace facebook::velox::functions::sparksql {
 namespace {
-template <typename TInput, typename TOutput>
+
 class CheckOverflowFunction final : public exec::VectorFunction {
   void apply(
       const SelectivityVector& rows,
@@ -29,10 +29,41 @@ class CheckOverflowFunction final : public exec::VectorFunction {
       exec::EvalCtx& context,
       VectorPtr& resultRef) const final {
     VELOX_CHECK_EQ(args.size(), 3);
+    // This VectorPtr type is different with type in makeCheckOverflow, because
+    // we cannot get input type by signature the input vector origins from
+    // DecimalArithmetic, it is a computed type by arithmetic operation
     auto fromType = args[0]->type();
     auto toType = args[1]->type();
     context.ensureWritable(rows, toType, resultRef);
+    if (toType->kind() == TypeKind::SHORT_DECIMAL) {
+      if (fromType->kind() == TypeKind::SHORT_DECIMAL) {
+        applyForVectorType<UnscaledShortDecimal, UnscaledShortDecimal>(
+            rows, args, outputType, context, resultRef);
+      } else {
+        applyForVectorType<UnscaledLongDecimal, UnscaledShortDecimal>(
+            rows, args, outputType, context, resultRef);
+      }
+    } else {
+      if (fromType->kind() == TypeKind::SHORT_DECIMAL) {
+        applyForVectorType<UnscaledShortDecimal, UnscaledLongDecimal>(
+            rows, args, outputType, context, resultRef);
+      } else {
+        applyForVectorType<UnscaledLongDecimal, UnscaledLongDecimal>(
+            rows, args, outputType, context, resultRef);
+      }
+    }
+  }
 
+ private:
+  template <typename TInput, typename TOutput>
+  void applyForVectorType(
+      const SelectivityVector& rows,
+      std::vector<VectorPtr>& args, // Not using const ref so we can reuse args
+      const TypePtr& outputType,
+      exec::EvalCtx& context,
+      VectorPtr& resultRef) const {
+    auto fromType = args[0]->type();
+    auto toType = args[1]->type();
     auto result =
         resultRef->asUnchecked<FlatVector<TOutput>>()->mutableRawValues();
     exec::DecodedArgs decodedArgs(rows, args, context);
@@ -88,7 +119,7 @@ class MakeDecimalFunction final : public exec::VectorFunction {
                         ->mutableRawValues();
       rows.applyToSelected([&](int row) {
         auto unscaled = unscaledVec->valueAt<int64_t>(row);
-        
+
         if (UnscaledShortDecimal::valueInRange(unscaled)) {
           result[row] = UnscaledShortDecimal(unscaled);
         } else {
@@ -158,25 +189,9 @@ std::shared_ptr<exec::VectorFunction> makeCheckOverflow(
     const std::string& name,
     const std::vector<exec::VectorFunctionArg>& inputArgs) {
   VELOX_CHECK_EQ(inputArgs.size(), 3);
-  auto fromType = inputArgs[0].type;
-  auto toType = inputArgs[1].type;
-  if (toType->kind() == TypeKind::SHORT_DECIMAL) {
-    if (fromType->kind() == TypeKind::SHORT_DECIMAL) {
-      return std::make_shared<
-          CheckOverflowFunction<UnscaledShortDecimal, UnscaledShortDecimal>>();
-    } else {
-      return std::make_shared<
-          CheckOverflowFunction<UnscaledLongDecimal, UnscaledShortDecimal>>();
-    }
-  } else {
-    if (fromType->kind() == TypeKind::SHORT_DECIMAL) {
-      return std::make_shared<
-          CheckOverflowFunction<UnscaledShortDecimal, UnscaledLongDecimal>>();
-    } else {
-      return std::make_shared<
-          CheckOverflowFunction<UnscaledLongDecimal, UnscaledLongDecimal>>();
-    }
-  }
+  static const auto kCheckOverflowFunction =
+      std::make_shared<CheckOverflowFunction>();
+  return kCheckOverflowFunction;
 }
 
 std::shared_ptr<exec::VectorFunction> makeMakeDecimal(
