@@ -454,6 +454,18 @@ class DecimalUtil {
     return (unscaled * sig) / DecimalUtil::kPowersOfTen[scale];
   }
 
+  template <class T>
+  inline static int numDigits(T number)
+  {
+    int digits = 0;
+    if (number < 0) digits = 1; // remove this line if '-' counts as a digit
+    while (number) {
+      number /= 10;
+      digits++;
+    }
+    return digits;
+  }
+
   static constexpr double double10pow[] = {
       1.0e0,  1.0e1,  1.0e2,  1.0e3,  1.0e4,  1.0e5,  1.0e6,  1.0e7,
       1.0e8,  1.0e9,  1.0e10, 1.0e11, 1.0e12, 1.0e13, 1.0e14, 1.0e15,
