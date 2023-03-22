@@ -319,7 +319,9 @@ class DecimalAverageAggregate : public exec::Aggregate {
 
         // Spark use DECIMAL(20, 0) to represent long value, but we need to
         // create a SHORT_DECIMAL to get SHORT_DECIMAL result
+        DCHECK(DecimalUtil::numDigits(accumulator->count) <= 18);
         auto countDecimal = UnscaledShortDecimal(accumulator->count);
+        DCHECK(accumulator->sum <= LONG_MAX);
         auto longUnscaledSum = (int64_t)accumulator->sum;
         DecimalUtil::divideWithRoundUp<
             UnscaledShortDecimal,
@@ -338,6 +340,7 @@ class DecimalAverageAggregate : public exec::Aggregate {
       if constexpr (std::is_same_v<TResultType, UnscaledLongDecimal>) {
         // Spark use DECIMAL(20, 0) to represent long value
         auto countDecimal = UnscaledLongDecimal(accumulator->count);
+        DCHECK(accumulator->sum <= LONG_MAX);
         auto longUnscaledSum = (int64_t)accumulator->sum;
         DecimalUtil::divideWithRoundUp<
             UnscaledLongDecimal,
@@ -355,7 +358,9 @@ class DecimalAverageAggregate : public exec::Aggregate {
 
         // Spark use DECIMAL(20, 0) to represent long value, but we need to
         // create a SHORT_DECIMAL to get SHORT_DECIMAL result
+        DCHECK(DecimalUtil::numDigits(accumulator->count) <= 18);
         auto countDecimal = UnscaledShortDecimal(accumulator->count);
+        DCHECK(accumulator->sum <= LONG_MAX);
         auto longUnscaledSum = (int64_t)accumulator->sum;
         DecimalUtil::divideWithRoundUp<
             UnscaledShortDecimal,
