@@ -28,16 +28,22 @@ template <
     typename Operation /* Arithmetic operation */>
 class DecimalBaseFunction : public exec::VectorFunction {
  public:
-  DecimalBaseFunction(uint8_t aRescale, uint8_t bRescale)
-      : aRescale_(aRescale), bRescale_(bRescale) {}
+  DecimalBaseFunction(
+      uint8_t aRescale,
+      uint8_t bRescale,
+      const TypePtr& resultType)
+      : aRescale_(aRescale), bRescale_(bRescale), resultType_(resultType) {}
 
   void apply(
       const SelectivityVector& rows,
       std::vector<VectorPtr>& args,
-      const TypePtr& resultType,
+      const TypePtr& resultType, // cannot used in spark
       exec::EvalCtx& context,
       VectorPtr& result) const override {
-    auto rawResults = prepareResults(rows, resultType, context, result);
+    // Here we can not use `resultType`, because this type derives from
+    // substrait plan in spark spark arithmetic result type is left datatype,
+    // but velox need new computed type
+    auto rawResults = prepareResults(rows, context, result);
     if (args[0]->isConstantEncoding() && args[1]->isFlatEncoding()) {
       // Fast path for (const, flat).
       auto constant = args[0]->asUnchecked<SimpleVector<A>>()->valueAt(0);
@@ -85,16 +91,16 @@ class DecimalBaseFunction : public exec::VectorFunction {
  private:
   R* prepareResults(
       const SelectivityVector& rows,
-      const TypePtr& resultType,
       exec::EvalCtx& context,
       VectorPtr& result) const {
-    context.ensureWritable(rows, resultType, result);
+    context.ensureWritable(rows, resultType_, result);
     result->clearNulls(rows);
     return result->asUnchecked<FlatVector<R>>()->mutableRawValues();
   }
 
   const uint8_t aRescale_;
   const uint8_t bRescale_;
+  const TypePtr resultType_;
 };
 
 class Addition {
@@ -227,9 +233,13 @@ class Divide {
       const uint8_t aScale,
       const uint8_t /*bPrecision*/,
       const uint8_t bScale) {
+    auto precision =
+        std::min(38, aPrecision + bScale + std::max(0, bScale - aScale));
+    // must use more big scale, otherwise the final result is not same with
+    // spark, the scale will be not enough
     return {
-        std::min(38, aPrecision + bScale + std::max(0, bScale - aScale)),
-        std::max(aScale, bScale)};
+        precision,
+        std::max(precision, static_cast<int32_t>(std::max(aScale, bScale)))};
   }
 };
 
@@ -268,19 +278,22 @@ decimalAddSubtractSignature() {
 }
 
 std::vector<std::shared_ptr<exec::FunctionSignature>> decimalDivideSignature() {
-  return {exec::FunctionSignatureBuilder()
-              .integerVariable("a_precision")
-              .integerVariable("a_scale")
-              .integerVariable("b_precision")
-              .integerVariable("b_scale")
-              .integerVariable(
-                  "r_precision",
-                  "min(38, a_precision + b_scale + max(0, b_scale - a_scale))")
-              .integerVariable("r_scale", "max(a_scale, b_scale)")
-              .returnType("DECIMAL(r_precision, r_scale)")
-              .argumentType("DECIMAL(a_precision, a_scale)")
-              .argumentType("DECIMAL(b_precision, b_scale)")
-              .build()};
+  return {
+      exec::FunctionSignatureBuilder()
+          .integerVariable("a_precision")
+          .integerVariable("a_scale")
+          .integerVariable("b_precision")
+          .integerVariable("b_scale")
+          .integerVariable(
+              "r_precision",
+              "min(38, a_precision + b_scale + max(0, b_scale - a_scale))")
+          .integerVariable(
+              "r_scale",
+              "max(max(a_scale, b_scale), min(38, a_precision + b_scale + max(0, b_scale - a_scale)))")
+          .returnType("DECIMAL(r_precision, r_scale)")
+          .argumentType("DECIMAL(a_precision, a_scale)")
+          .argumentType("DECIMAL(b_precision, b_scale)")
+          .build()};
 }
 
 template <typename Operation>
@@ -303,14 +316,14 @@ std::shared_ptr<exec::VectorFunction> createDecimalFunction(
             UnscaledLongDecimal /*result*/,
             UnscaledShortDecimal,
             UnscaledShortDecimal,
-            Operation>>(aRescale, bRescale);
+            Operation>>(aRescale, bRescale, LONG_DECIMAL(rPrecision, rScale));
       } else {
         // Arguments are short decimals and result is a short decimal.
         return std::make_shared<DecimalBaseFunction<
             UnscaledShortDecimal /*result*/,
             UnscaledShortDecimal,
             UnscaledShortDecimal,
-            Operation>>(aRescale, bRescale);
+            Operation>>(aRescale, bRescale, SHORT_DECIMAL(rPrecision, rScale));
       }
     } else {
       // LHS is short decimal and rhs is a long decimal, result is long decimal.
@@ -318,7 +331,7 @@ std::shared_ptr<exec::VectorFunction> createDecimalFunction(
           UnscaledLongDecimal /*result*/,
           UnscaledShortDecimal,
           UnscaledLongDecimal,
-          Operation>>(aRescale, bRescale);
+          Operation>>(aRescale, bRescale, LONG_DECIMAL(rPrecision, rScale));
     }
   } else {
     if (bType->kind() == TypeKind::SHORT_DECIMAL) {
@@ -327,14 +340,14 @@ std::shared_ptr<exec::VectorFunction> createDecimalFunction(
           UnscaledLongDecimal /*result*/,
           UnscaledLongDecimal,
           UnscaledShortDecimal,
-          Operation>>(aRescale, bRescale);
+          Operation>>(aRescale, bRescale, LONG_DECIMAL(rPrecision, rScale));
     } else {
       // Arguments and result are all long decimals.
       return std::make_shared<DecimalBaseFunction<
           UnscaledLongDecimal /*result*/,
           UnscaledLongDecimal,
           UnscaledLongDecimal,
-          Operation>>(aRescale, bRescale);
+          Operation>>(aRescale, bRescale, LONG_DECIMAL(rPrecision, rScale));
     }
   }
   VELOX_UNSUPPORTED();
