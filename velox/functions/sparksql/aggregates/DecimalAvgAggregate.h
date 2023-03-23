@@ -289,97 +289,55 @@ class DecimalAverageAggregate : public exec::Aggregate {
   }
 
   TResultType computeFinalValue(LongDecimalWithOverflowState* accumulator) {
-    // Handles round-up of fraction results.
-    auto [sumPrecision, sumScale] =
-        getDecimalPrecisionScale(*this->inputType().get());
-    auto [rPrecision, rScale] =
-        getDecimalPrecisionScale(*this->resultType().get());
-    int countScale = 0;
-    auto sumRescale = computeRescaleFactor(sumScale, countScale, rScale);
-
-    TResultType average = TResultType(0);
-    if constexpr (std::is_same_v<TInputType, UnscaledLongDecimal>) {
-      if constexpr (std::is_same_v<TResultType, UnscaledLongDecimal>) {
-        // Spark use DECIMAL(20, 0) to represent long value
-        auto countDecimal = UnscaledLongDecimal(accumulator->count);
-
-        DecimalUtil::divideWithRoundUp<
-            UnscaledLongDecimal,
-            UnscaledLongDecimal,
-            UnscaledLongDecimal>(
-            average,
-            (UnscaledLongDecimal)accumulator->sum,
-            countDecimal,
-            false,
-            sumRescale,
-            0);
-      } else if constexpr (std::is_same_v<TResultType, UnscaledShortDecimal>) {
-        // we enter this case when input type is DECIMAL(10, 2), final Agg input
-        // sum type is DECIMAL(20, 2), but output type is DECIMAL(14, 2) Spark
-
-        // Spark use DECIMAL(20, 0) to represent long value, but we need to
-        // create a SHORT_DECIMAL to get SHORT_DECIMAL result
-        DCHECK(DecimalUtil::numDigits(accumulator->count) <= 18);
-        auto countDecimal = UnscaledShortDecimal(accumulator->count);
-        DCHECK(accumulator->sum <= LONG_MAX);
-        auto longUnscaledSum = (int64_t)accumulator->sum;
-        DecimalUtil::divideWithRoundUp<
-            UnscaledShortDecimal,
-            UnscaledShortDecimal,
-            UnscaledShortDecimal>(
-            average,
-            UnscaledShortDecimal(longUnscaledSum),
-            countDecimal,
-            false,
-            sumRescale,
-            0);
-      } else {
-        VELOX_FAIL("Final Avg Agg result type must be DECIMAL");
-      }
-    } else if constexpr (std::is_same_v<TInputType, UnscaledShortDecimal>) {
-      if constexpr (std::is_same_v<TResultType, UnscaledLongDecimal>) {
-        // Spark use DECIMAL(20, 0) to represent long value
-        auto countDecimal = UnscaledLongDecimal(accumulator->count);
-        DCHECK(accumulator->sum <= LONG_MAX);
-        auto longUnscaledSum = (int64_t)accumulator->sum;
-        DecimalUtil::divideWithRoundUp<
-            UnscaledLongDecimal,
-            UnscaledShortDecimal,
-            UnscaledLongDecimal>(
-            average,
-            UnscaledShortDecimal(longUnscaledSum),
-            countDecimal,
-            false,
-            sumRescale,
-            0);
-      } else if constexpr (std::is_same_v<TResultType, UnscaledShortDecimal>) {
-        // we enter this case when input type is DECIMAL(10, 2), final Agg input
-        // sum type is DECIMAL(20, 2), but output type is DECIMAL(14, 2) Spark
-
-        // Spark use DECIMAL(20, 0) to represent long value, but we need to
-        // create a SHORT_DECIMAL to get SHORT_DECIMAL result
-        DCHECK(DecimalUtil::numDigits(accumulator->count) <= 18);
-        auto countDecimal = UnscaledShortDecimal(accumulator->count);
-        DCHECK(accumulator->sum <= LONG_MAX);
-        auto longUnscaledSum = (int64_t)accumulator->sum;
-        DecimalUtil::divideWithRoundUp<
-            UnscaledShortDecimal,
-            UnscaledShortDecimal,
-            UnscaledShortDecimal>(
-            average,
-            UnscaledShortDecimal(longUnscaledSum),
-            countDecimal,
-            false,
-            sumRescale,
-            0);
-      } else {
-        VELOX_FAIL("Final Avg Agg result type must be DECIMAL");
-      }
-    } else {
-      VELOX_FAIL("Final Avg Agg result type must be DECIMAL");
+    if (accumulator->overflow > 0) {
+      VELOX_FAIL("Avg sum overflow!");
     }
+    auto [resultPrecision, resultScale] =
+        getDecimalPrecisionScale(*this->resultType().get());
+    auto sumType = this->inputType().get();
+    // Spark use DECIMAL(20,0) to represent long value
+    int countPrecision = 20;
+    int countScale = 0;
+    auto [sumPrecision, sumScale] = getDecimalPrecisionScale(*sumType);
+    auto [avgPrecision, avgScale] = computeResultPrecisionScale(
+        sumPrecision, sumScale, countPrecision, countScale);
+    auto sumRescale = computeRescaleFactor(sumScale, countScale, avgScale);
+    auto countDecimal = UnscaledLongDecimal(accumulator->count);
+    auto avg = UnscaledLongDecimal(0);
 
-    return average;
+    if (sumType->kind() == TypeKind::SHORT_DECIMAL) {
+      // sumType is SHORT_DECIMAL, we can safely convert sum to int64_t
+      auto longSum = (int64_t)accumulator->sum;
+      DecimalUtil::divideWithRoundUp<
+          UnscaledLongDecimal,
+          UnscaledShortDecimal,
+          UnscaledLongDecimal>(
+          avg,
+          UnscaledShortDecimal(longSum),
+          countDecimal,
+          false,
+          sumRescale,
+          0);
+    } else {
+      DecimalUtil::divideWithRoundUp<
+          UnscaledLongDecimal,
+          UnscaledLongDecimal,
+          UnscaledLongDecimal>(
+          avg,
+          UnscaledLongDecimal(accumulator->sum),
+          countDecimal,
+          false,
+          sumRescale,
+          0);
+    }
+    auto castedAvg =
+        DecimalUtil::rescaleWithRoundUp<UnscaledLongDecimal, TResultType>(
+            avg, avgPrecision, avgScale, resultPrecision, resultScale);
+    if (castedAvg.has_value()) {
+      return castedAvg.value();
+    } else {
+      VELOX_FAIL("Failed to compute final average value.");
+    }
   }
 
   void extractValues(char** groups, int32_t numGroups, VectorPtr* result)
@@ -458,6 +416,32 @@ class DecimalAverageAggregate : public exec::Aggregate {
     return rScale - fromScale + toScale;
   }
 
+  inline static std::pair<uint8_t, uint8_t> computeResultPrecisionScale(
+      const uint8_t aPrecision,
+      const uint8_t aScale,
+      const uint8_t bPrecision,
+      const uint8_t bScale) {
+    uint8_t intDig = aPrecision - aScale + bScale;
+    uint8_t scale = std::max(6, aScale + bPrecision + 1);
+    uint8_t precision = intDig + scale;
+    return adjustPrecisionScale(precision, scale);
+  }
+
+  inline static std::pair<uint8_t, uint8_t> adjustPrecisionScale(
+      const uint8_t precision,
+      const uint8_t scale) {
+      VELOX_CHECK(scale >= 0);
+      VELOX_CHECK(precision >= scale);
+      if (precision <= 38) {
+        return {precision, scale};
+      } else {
+        uint8_t intDigits = precision - scale;
+        uint8_t minScaleValue = std::min(scale, (uint8_t)6);
+        uint8_t adjustedScale = std::max((uint8_t)(38 - intDigits), minScaleValue);
+        return {38, adjustedScale};
+      }
+  }
+
   DecodedVector decodedRaw_;
   DecodedVector decodedPartial_;
   const TypePtr inputType_;
@@ -485,27 +469,62 @@ bool registerDecimalAvgAggregate(const std::string& name) {
             argTypes.size(), 1, "{} takes at most one argument", name);
         auto& inputType = argTypes[0];
         switch (inputType->kind()) {
-          case TypeKind::SHORT_DECIMAL:
-            if (resultType->kind() == TypeKind::SHORT_DECIMAL) {
-              return std::make_unique<DecimalAverageAggregate<
-                  UnscaledShortDecimal,
-                  UnscaledShortDecimal>>(inputType, resultType);
-            } else {
-              return std::make_unique<DecimalAverageAggregate<
-                  UnscaledShortDecimal,
-                  UnscaledLongDecimal>>(inputType, resultType);
+          case TypeKind::SHORT_DECIMAL: {
+            switch (resultType->kind()) {
+              case TypeKind::ROW: { // Partial
+                auto sumResultType = resultType->asRow().childAt(0);
+                if (sumResultType->kind() == TypeKind::SHORT_DECIMAL) {
+                  return std::make_unique<DecimalAverageAggregate<
+                      UnscaledShortDecimal,
+                      UnscaledShortDecimal>>(inputType, resultType);
+                } else {
+                  return std::make_unique<DecimalAverageAggregate<
+                      UnscaledShortDecimal,
+                      UnscaledLongDecimal>>(inputType, resultType);
+                }
+              }
+              case TypeKind::SHORT_DECIMAL: // Complete
+                return std::make_unique<DecimalAverageAggregate<
+                    UnscaledShortDecimal,
+                    UnscaledShortDecimal>>(inputType, resultType);
+              case TypeKind::LONG_DECIMAL: // Complete
+                return std::make_unique<DecimalAverageAggregate<
+                    UnscaledShortDecimal,
+                    UnscaledLongDecimal>>(inputType, resultType);
+              default:
+                VELOX_FAIL(
+                    "Unknown result type for {} aggregation {}",
+                    name,
+                    resultType->kindName());
             }
-          case TypeKind::LONG_DECIMAL:
-            if (resultType->kind() == TypeKind::LONG_DECIMAL) {
-              return std::make_unique<DecimalAverageAggregate<
-                  UnscaledLongDecimal,
-                  UnscaledLongDecimal>>(inputType, resultType);
-            } else {
-              VELOX_FAIL(
-                  "Partial Avg Agg result type must greater than input type.");
+          }
+          case TypeKind::LONG_DECIMAL: {
+            switch (resultType->kind()) {
+              case TypeKind::ROW: { // Partial
+                auto sumResultType = resultType->asRow().childAt(0);
+                if (sumResultType->kind() == TypeKind::LONG_DECIMAL) {
+                  return std::make_unique<DecimalAverageAggregate<
+                      UnscaledLongDecimal,
+                      UnscaledLongDecimal>>(inputType, resultType);
+                } else {
+                  VELOX_FAIL(
+                      "Partial Avg Agg result type must greater than input type. result={}",
+                      resultType->kind());
+                }
+              }
+              case TypeKind::LONG_DECIMAL: // Complete
+                return std::make_unique<DecimalAverageAggregate<
+                    UnscaledLongDecimal,
+                    UnscaledLongDecimal>>(inputType, resultType);
+              default:
+                VELOX_FAIL(
+                    "Unknown result type for {} aggregation {}",
+                    name,
+                    resultType->kindName());
             }
-          case TypeKind::ROW: {
-            DCHECK(!exec::isRawInput(step));
+          }
+          case TypeKind::ROW: { // Final
+            VELOX_CHECK(!exec::isRawInput(step));
             auto sumInputType = inputType->asRow().childAt(0);
             switch (sumInputType->kind()) {
               case TypeKind::LONG_DECIMAL:
