@@ -166,8 +166,10 @@ void registerFunctions(const std::string& prefix) {
 
   exec::registerStatefulVectorFunction(
       prefix + "check_overflow", checkOverflowSignatures(), makeCheckOverflow);
-        exec::registerStatefulVectorFunction(
+  exec::registerStatefulVectorFunction(
       prefix + "make_decimal", makeDecimalSignatures(), makeMakeDecimal);
+  exec::registerStatefulVectorFunction(
+      prefix + "decimal_round", roundDecimalSignatures(), makeRoundDecimal);
 
   // Register bloom filter function
   exec::registerStatefulVectorFunction(
