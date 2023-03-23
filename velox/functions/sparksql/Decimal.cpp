@@ -154,6 +154,89 @@ class MakeDecimalFunction final : public exec::VectorFunction {
     }
   }
 };
+
+template <typename TInput>
+class RoundDecimalFunction final : public exec::VectorFunction {
+  void apply(
+      const SelectivityVector& rows,
+      std::vector<VectorPtr>& args, // Not using const ref so we can reuse args
+      const TypePtr& outputType,
+      exec::EvalCtx& context,
+      VectorPtr& resultRef) const final {
+    VELOX_CHECK_EQ(args.size(), 2);
+    auto fromType = args[0]->type();
+
+    exec::DecodedArgs decodedArgs(rows, args, context);
+    auto decimalValue = decodedArgs.at(0);
+    VELOX_CHECK(decodedArgs.at(1)->isConstantMapping());
+    auto scale = decodedArgs.at(1)->valueAt<int32_t>(0);
+
+    const auto& fromPrecisionScale = getDecimalPrecisionScale(*fromType);
+    const auto& fromPrecision = fromPrecisionScale.first;
+    const auto& fromScale = fromPrecisionScale.second;
+    auto toPrecision = fromPrecision;
+    auto toScale = fromScale;
+
+    // Calculate the result data type based on spark logic.
+    const auto& integralLeastNumDigits = fromPrecision - fromScale + 1;
+    if (scale < 0) {
+      const auto& newPrecision =
+          std::max(integralLeastNumDigits, -fromScale + 1);
+      toPrecision = std::min(newPrecision, 38);
+      toScale = 0;
+    } else {
+      toScale = std::min(fromScale, scale);
+      toPrecision = std::min(integralLeastNumDigits + toScale, 38);
+    }
+
+    rows.applyToSelected([&](int row) {
+      if (toPrecision > 18) {
+        context.ensureWritable(
+            rows,
+            LONG_DECIMAL(
+                static_cast<uint8_t>(toPrecision),
+                static_cast<uint8_t>(toScale)),
+            resultRef);
+        auto rescaledValue =
+            DecimalUtil::rescaleWithRoundUp<TInput, UnscaledLongDecimal>(
+                decimalValue->valueAt<TInput>(row),
+                fromPrecision,
+                fromScale,
+                toPrecision,
+                toScale);
+        auto result = resultRef->asUnchecked<FlatVector<UnscaledLongDecimal>>()
+                          ->mutableRawValues();
+        if (rescaledValue.has_value()) {
+          result[row] = rescaledValue.value();
+        } else {
+          resultRef->setNull(row, true);
+        }
+      } else {
+        context.ensureWritable(
+            rows,
+            SHORT_DECIMAL(
+                static_cast<uint8_t>(toPrecision),
+                static_cast<uint8_t>(toScale)),
+            resultRef);
+        auto rescaledValue =
+            DecimalUtil::rescaleWithRoundUp<TInput, UnscaledShortDecimal>(
+                decimalValue->valueAt<TInput>(row),
+                fromPrecision,
+                fromScale,
+                toPrecision,
+                toScale);
+        auto result = resultRef->asUnchecked<FlatVector<UnscaledShortDecimal>>()
+                          ->mutableRawValues();
+        if (rescaledValue.has_value()) {
+          result[row] = rescaledValue.value();
+        } else {
+          resultRef->setNull(row, true);
+        }
+      }
+    });
+  }
+};
+
 } // namespace
 
 std::vector<std::shared_ptr<exec::FunctionSignature>>
@@ -185,6 +268,18 @@ std::vector<std::shared_ptr<exec::FunctionSignature>> makeDecimalSignatures() {
               .build()};
 }
 
+std::vector<std::shared_ptr<exec::FunctionSignature>> roundDecimalSignatures() {
+  return {exec::FunctionSignatureBuilder()
+              .integerVariable("a_precision")
+              .integerVariable("a_scale")
+              .integerVariable("r_precision", "min(38, a_precision)")
+              .integerVariable("r_scale", "min(38, a_scale)")
+              .returnType("DECIMAL(r_precision, r_scale)")
+              .argumentType("DECIMAL(a_precision, a_scale)")
+              .argumentType("integer")
+              .build()};
+}
+
 std::shared_ptr<exec::VectorFunction> makeCheckOverflow(
     const std::string& name,
     const std::vector<exec::VectorFunctionArg>& inputArgs) {
@@ -211,6 +306,22 @@ std::shared_ptr<exec::VectorFunction> makeMakeDecimal(
     default:
       VELOX_FAIL(
           "Not support this type {} in make_decimal", fromType->kindName())
+  }
+}
+
+std::shared_ptr<exec::VectorFunction> makeRoundDecimal(
+    const std::string& name,
+    const std::vector<exec::VectorFunctionArg>& inputArgs) {
+  VELOX_CHECK_EQ(inputArgs.size(), 2);
+  auto fromType = inputArgs[0].type;
+  switch (fromType->kind()) {
+    case TypeKind::SHORT_DECIMAL:
+      return std::make_shared<RoundDecimalFunction<UnscaledShortDecimal>>();
+    case TypeKind::LONG_DECIMAL:
+      return std::make_shared<RoundDecimalFunction<UnscaledLongDecimal>>();
+    default:
+      VELOX_FAIL(
+          "Not support this type {} in round_decimal", fromType->kindName())
   }
 }
 
