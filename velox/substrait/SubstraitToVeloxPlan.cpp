@@ -715,6 +715,82 @@ core::PlanNodePtr SubstraitVeloxPlanConverter::toVeloxPlan(
 }
 
 core::PlanNodePtr SubstraitVeloxPlanConverter::toVeloxPlan(
+    const ::substrait::WindowTopKFilterRel& windowTopKFilterRel) {
+  core::PlanNodePtr childNode;
+  if (windowTopKFilterRel.has_input()) {
+    childNode = toVeloxPlan(windowTopKFilterRel.input());
+  } else {
+    VELOX_FAIL("Child Rel is expected in WindowRel.");
+  }
+
+  const auto& inputType = childNode->outputType();
+
+  // Construct partitionKeys
+  std::vector<core::FieldAccessTypedExprPtr> partitionKeys;
+  const auto& partitions = windowTopKFilterRel.partition_expressions();
+  partitionKeys.reserve(partitions.size());
+  for (const auto& partition : partitions) {
+    auto expression = exprConverter_->toVeloxExpr(partition, inputType);
+    auto expr_field =
+        dynamic_cast<const core::FieldAccessTypedExpr*>(expression.get());
+    VELOX_CHECK(
+        expr_field != nullptr,
+        " the partition key in WindowTopKFilter Operator only support field")
+
+    partitionKeys.emplace_back(
+        std::dynamic_pointer_cast<const core::FieldAccessTypedExpr>(
+            expression));
+  }
+
+  std::vector<core::FieldAccessTypedExprPtr> sortingKeys;
+  std::vector<core::SortOrder> sortingOrders;
+
+  const auto& sorts = windowTopKFilterRel.sorts();
+  sortingKeys.reserve(sorts.size());
+  sortingOrders.reserve(sorts.size());
+
+  for (const auto& sort : sorts) {
+    switch (sort.direction()) {
+      case ::substrait::SortField_SortDirection_SORT_DIRECTION_ASC_NULLS_FIRST:
+        sortingOrders.emplace_back(core::kAscNullsFirst);
+        break;
+      case ::substrait::SortField_SortDirection_SORT_DIRECTION_ASC_NULLS_LAST:
+        sortingOrders.emplace_back(core::kAscNullsLast);
+        break;
+      case ::substrait::SortField_SortDirection_SORT_DIRECTION_DESC_NULLS_FIRST:
+        sortingOrders.emplace_back(core::kDescNullsFirst);
+        break;
+      case ::substrait::SortField_SortDirection_SORT_DIRECTION_DESC_NULLS_LAST:
+        sortingOrders.emplace_back(core::kDescNullsLast);
+        break;
+      default:
+      VELOX_FAIL("Sort direction is not support in WindowTopKFilterRel");
+    }
+
+    if (sort.has_expr()) {
+      auto expression = exprConverter_->toVeloxExpr(sort.expr(), inputType);
+      auto expr_field =
+          dynamic_cast<const core::FieldAccessTypedExpr*>(expression.get());
+      VELOX_CHECK(
+          expr_field != nullptr,
+          " the sorting key in WindowTopKFilter Operator only support field")
+
+      sortingKeys.emplace_back(
+          std::dynamic_pointer_cast<const core::FieldAccessTypedExpr>(
+              expression));
+    }
+  }
+
+  return std::make_shared<core::WindowTopNFilterNode>(
+      nextPlanNodeId(),
+      windowTopKFilterRel.k(),
+      partitionKeys,
+      sortingKeys,
+      sortingOrders,
+      childNode);
+}
+
+core::PlanNodePtr SubstraitVeloxPlanConverter::toVeloxPlan(
     const ::substrait::SortRel& sortRel) {
   auto childNode = convertSingleInput<::substrait::SortRel>(sortRel);
 
@@ -1103,6 +1179,9 @@ core::PlanNodePtr SubstraitVeloxPlanConverter::toVeloxPlan(
   }
   if (sRel.has_window()) {
     return toVeloxPlan(sRel.window());
+  }
+  if (sRel.has_window_topk_filter()) {
+    return toVeloxPlan(sRel.window_topk_filter());
   }
   VELOX_NYI("Substrait conversion not supported for Rel.");
 }

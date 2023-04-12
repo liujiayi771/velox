@@ -39,6 +39,7 @@
 #include "velox/exec/Unnest.h"
 #include "velox/exec/Values.h"
 #include "velox/exec/Window.h"
+#include "velox/exec/WindowTopKFilter.h"
 
 namespace facebook::velox::exec {
 
@@ -411,6 +412,10 @@ std::shared_ptr<Driver> DriverFactory::createDriver(
         auto topNNode =
             std::dynamic_pointer_cast<const core::TopNNode>(planNode)) {
       operators.push_back(std::make_unique<TopN>(id, ctx.get(), topNNode));
+    } else if (
+        auto windowTopNFilterNode =
+            std::dynamic_pointer_cast<const core::WindowTopNFilterNode>(planNode)) {
+      operators.push_back(std::make_unique<WindowTopKFilter>(id, ctx.get(), windowTopNFilterNode));
     } else if (
         auto limitNode =
             std::dynamic_pointer_cast<const core::LimitNode>(planNode)) {

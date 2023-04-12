@@ -65,7 +65,8 @@ add_executable(
   UnnestTest.cpp
   VectorHasherTest.cpp
   ValuesTest.cpp
-  WindowFunctionRegistryTest.cpp)
+  WindowFunctionRegistryTest.cpp
+  WindowTopKFilterTest.cpp)
 
 add_test(
   NAME velox_exec_test

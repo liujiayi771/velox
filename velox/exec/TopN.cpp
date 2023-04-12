@@ -64,6 +64,7 @@ void TopN::addInput(RowVectorPtr input) {
   }
 
   for (int row = 0; row < input->size(); ++row) {
+
     char* newRow = nullptr;
     if (topRows_.size() < count_) {
       newRow = data_->newRow();

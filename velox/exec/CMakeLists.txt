@@ -61,7 +61,8 @@ add_library(
   Window.cpp
   WindowFunction.cpp
   WindowPartition.cpp
-  AssignUniqueId.cpp)
+  AssignUniqueId.cpp
+  WindowTopKFilter.cpp)
 
 target_link_libraries(
   velox_exec

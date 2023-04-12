@@ -379,6 +379,11 @@ bool SubstraitToVeloxPlanValidator::validate(
 }
 
 bool SubstraitToVeloxPlanValidator::validate(
+    const ::substrait::WindowTopKFilterRel &sWindowTopKFilter) {
+  return true;
+}
+
+bool SubstraitToVeloxPlanValidator::validate(
     const ::substrait::SortRel& sSort) {
   if (sSort.has_input() && !validate(sSort.input())) {
     return false;
@@ -912,6 +917,9 @@ bool SubstraitToVeloxPlanValidator::validate(const ::substrait::Rel& sRel) {
   }
   if (sRel.has_window()) {
     return validate(sRel.window());
+  }
+  if (sRel.has_window_topk_filter()) {
+    return validate(sRel.window_topk_filter());
   }
   return false;
 }

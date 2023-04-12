@@ -1982,4 +1982,71 @@ class WindowNode : public PlanNode {
   const RowTypePtr outputType_;
 };
 
+class WindowTopNFilterNode : public PlanNode {
+public:
+  WindowTopNFilterNode(
+      const PlanNodeId& id,
+      int32_t k,
+      const std::vector<FieldAccessTypedExprPtr>& partitionKeys,
+      const std::vector<FieldAccessTypedExprPtr>& sortingKeys,
+      const std::vector<SortOrder>& sortingOrders,
+      const PlanNodePtr& source)
+      : PlanNode(id),
+        k_(k),
+        partitionKeys_(partitionKeys),
+        sortingKeys_(sortingKeys),
+        sortingOrders_(sortingOrders),
+        sources_{source} {
+    VELOX_CHECK(!partitionKeys.empty(), "WindowTopKFilter must specify partition keys")
+    VELOX_CHECK(!sortingKeys.empty(), "WindowTopKFilter must specify sorting keys");
+    VELOX_CHECK(
+            sortingKeys.size() == sortingOrders.size(),
+            "Number of sorting keys and sorting orders in WindowTopKFilter must be the same");
+    VELOX_CHECK(
+            k > 0,
+            "WindowTopKFilter must specify greater than zero number of rows to keep");
+  }
+
+  const std::vector<FieldAccessTypedExprPtr>& partitionKeys() const {
+    return partitionKeys_;
+  }
+
+  const std::vector<FieldAccessTypedExprPtr>& sortingKeys() const {
+    return sortingKeys_;
+  }
+
+  const std::vector<SortOrder>& sortingOrders() const {
+    return sortingOrders_;
+  }
+
+  const RowTypePtr& outputType() const override {
+    return sources_[0]->outputType();
+  }
+
+  const std::vector<PlanNodePtr>& sources() const override {
+    return sources_;
+  }
+
+  int32_t k() const {
+    return k_;
+  }
+
+  std::string_view name() const override {
+    return "WindowTopKFilter";
+  }
+
+  folly::dynamic serialize() const override;
+
+  static PlanNodePtr create(const folly::dynamic& obj, void* context);
+
+private:
+    void addDetails(std::stringstream& stream) const override;
+
+    const int32_t k_;
+    const std::vector<FieldAccessTypedExprPtr> partitionKeys_;
+    const std::vector<FieldAccessTypedExprPtr> sortingKeys_;
+    const std::vector<SortOrder> sortingOrders_;
+    const std::vector<PlanNodePtr> sources_;
+};
+
 } // namespace facebook::velox::core

@@ -1377,6 +1377,42 @@ PlanNodePtr TopNNode::create(const folly::dynamic& obj, void* context) {
       std::move(source));
 }
 
+void WindowTopNFilterNode::addDetails(std::stringstream& stream) const {
+  stream << k_ << " ";
+  stream << "partition by [";
+  if (!partitionKeys_.empty()) {
+    addFields(stream, partitionKeys_);
+  }
+  stream << "] ";
+  addSortingKeys(stream, sortingKeys_, sortingOrders_);
+}
+
+folly::dynamic WindowTopNFilterNode::serialize() const {
+  auto obj = PlanNode::serialize();
+  obj["k"] = k_;
+  obj["partitionKeys"] = ISerializable::serialize(partitionKeys_);
+  obj["sortingKeys"] = ISerializable::serialize(sortingKeys_);
+  obj["sortingOrders"] = serializeSortingOrders(sortingOrders_);
+  return obj;
+}
+
+// static
+PlanNodePtr WindowTopNFilterNode::create(const folly::dynamic& obj, void* context) {
+  auto source = deserializeSingleSource(obj, context);
+  auto k = obj["k"].asInt();
+  auto partitionKeys = deserializeFields(obj["partitionKeys"], context);
+  auto sortingKeys = deserializeFields(obj["sortingKeys"], context);
+  auto sortingOrders = deserializeSortingOrders(obj["sortingOrders"]);
+
+  return std::make_shared<WindowTopNFilterNode>(
+          deserializePlanNodeId(obj),
+          k,
+          std::move(partitionKeys),
+          std::move(sortingKeys),
+          std::move(sortingOrders),
+          std::move(source));
+}
+
 void LimitNode::addDetails(std::stringstream& stream) const {
   if (isPartial_) {
     stream << "PARTIAL ";
@@ -1538,6 +1574,7 @@ void PlanNode::registerSerDe() {
   registry.Register("TableScanNode", TableScanNode::create);
   registry.Register("TableWriteNode", TableWriteNode::create);
   registry.Register("TopNNode", TopNNode::create);
+  registry.Register("WindowTopKFilter", WindowTopNFilterNode::create);
   registry.Register("UnnestNode", UnnestNode::create);
   registry.Register("ValuesNode", ValuesNode::create);
   registry.Register("WindowNode", WindowNode::create);

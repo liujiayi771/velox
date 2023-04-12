@@ -482,6 +482,10 @@ class PlanBuilder {
   PlanBuilder&
   topN(const std::vector<std::string>& keys, int32_t count, bool isPartial);
 
+  PlanBuilder& windowTopKFilter(int32_t k,
+                                std::vector<std::string> partitionKeys,
+                                std::vector<std::string> sortKeys);
+
   /// Add a LimitNode.
   ///
   /// @param offset Offset, i.e. number of rows of input to skip.

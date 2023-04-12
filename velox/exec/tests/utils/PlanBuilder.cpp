@@ -716,6 +716,27 @@ PlanBuilder& PlanBuilder::topN(
   return *this;
 }
 
+PlanBuilder& PlanBuilder::windowTopKFilter(int32_t k,
+                                           std::vector<std::string> partitionKeys,
+                                           std::vector<std::string> sortKeys) {
+  std::vector<core::FieldAccessTypedExprPtr> partitioningKeys(partitionKeys.size());
+  for (int32_t i = 0; i < partitionKeys.size(); i++) {
+    partitioningKeys[i] = std::dynamic_pointer_cast<const core::FieldAccessTypedExpr>(
+        parseExpr(partitionKeys[i], planNode_->outputType(), options_, pool_));
+  }
+  auto [sortingKeys, sortingOrders] =
+      parseOrderByClauses(sortKeys, planNode_->outputType(), pool_);
+
+  planNode_ = std::make_shared<core::WindowTopNFilterNode>(
+      nextPlanNodeId(),
+      k,
+      partitioningKeys,
+      sortingKeys,
+      sortingOrders,
+      planNode_);
+  return *this;
+}
+
 PlanBuilder& PlanBuilder::limit(int32_t offset, int32_t count, bool isPartial) {
   planNode_ = std::make_shared<core::LimitNode>(
       nextPlanNodeId(), offset, count, isPartial, planNode_);

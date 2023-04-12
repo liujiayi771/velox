@@ -251,6 +251,15 @@ message WindowRel {
   }
 }
 
+message WindowTopKFilterRel {
+  RelCommon common = 1;
+  Rel input = 2;
+  int32 k = 3;
+  repeated Expression partition_expressions = 4;
+  repeated SortField sorts = 5;
+  substrait.extensions.AdvancedExtension advanced_extension = 10;
+}
+
 // The relational operator capturing simple FILTERs (as in the WHERE clause of SQL)
 message FilterRel {
   RelCommon common = 1;
@@ -403,6 +412,7 @@ message Rel {
     MergeJoinRel merge_join = 14;
     ExpandRel expand = 15;
     WindowRel window = 16;
+    WindowTopKFilterRel window_topk_filter = 18;
   }
 }
 
