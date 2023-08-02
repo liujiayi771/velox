@@ -13,17 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "velox/functions/sparksql/aggregates/CentralMomentsAggregates.h"
+
 #include "velox/exec/Aggregate.h"
 #include "velox/functions/lib/aggregates/CentralMomentsAggregate.h"
-#include "velox/functions/prestosql/aggregates/AggregateNames.h"
 
 using namespace facebook::velox::functions::aggregate;
 
-namespace facebook::velox::aggregate::prestosql {
+namespace facebook::velox::aggregate::sparksql {
 
 struct SkewnessResultAccessor {
   static bool hasResult(const CentralMomentsAccumulator& accumulator) {
-    return accumulator.count() >= 3;
+    return accumulator.count() >= 1 && accumulator.m2() != 0;
   }
 
   static double result(const CentralMomentsAccumulator& accumulator) {
@@ -34,7 +35,7 @@ struct SkewnessResultAccessor {
 
 struct KurtosisResultAccessor {
   static bool hasResult(const CentralMomentsAccumulator& accumulator) {
-    return accumulator.count() >= 4;
+    return accumulator.count() >= 1 && accumulator.m2() != 0;
   }
 
   static double result(const CentralMomentsAccumulator& accumulator) {
@@ -48,8 +49,8 @@ struct KurtosisResultAccessor {
 };
 
 void registerCentralMomentsAggregates(const std::string& prefix) {
-  registerCentralMoments<KurtosisResultAccessor>(prefix + kKurtosis);
-  registerCentralMoments<SkewnessResultAccessor>(prefix + kSkewness);
+  registerCentralMoments<KurtosisResultAccessor>(prefix + "kurtosis");
+  registerCentralMoments<SkewnessResultAccessor>(prefix + "skewness");
 }
 
-} // namespace facebook::velox::aggregate::prestosql
+} // namespace facebook::velox::aggregate::sparksql
