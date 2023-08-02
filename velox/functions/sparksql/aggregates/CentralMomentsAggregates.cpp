@@ -13,14 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "velox/functions/sparksql/aggregates/CentralMomentsAggregates.h"
 
 #include "velox/exec/Aggregate.h"
 #include "velox/functions/lib/aggregates/CentralMomentsAggregate.h"
 
 using namespace facebook::velox::functions::aggregate;
 
-namespace facebook::velox::aggregate::sparksql {
+namespace facebook::velox::functions::aggregate::sparksql {
 
 struct SkewnessResultAccessor {
   static bool hasResult(const CentralMomentsAccumulator& accumulator) {
