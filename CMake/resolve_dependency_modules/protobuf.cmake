@@ -19,8 +19,7 @@ set(VELOX_PROTOBUF_BUILD_SHA256_CHECKSUM
 string(
   CONCAT
     VELOX_PROTOBUF_SOURCE_URL
-    "https://github.com/protocolbuffers/protobuf/releases/download/"
-    "v${VELOX_PROTOBUF_BUILD_VERSION}/protobuf-all-${VELOX_PROTOBUF_BUILD_VERSION}.tar.gz"
+    "https://emr-public-sh.oss-cn-shanghai.aliyuncs.com/native_spark/protobuf-all-${VELOX_PROTOBUF_BUILD_VERSION}.tar.gz"
 )
 
 resolve_dependency_url(PROTOBUF)

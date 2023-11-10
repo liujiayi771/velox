@@ -17,7 +17,7 @@ set(VELOX_CPR_VERSION 1.10.5)
 set(VELOX_CPR_BUILD_SHA256_CHECKSUM
     c8590568996cea918d7cf7ec6845d954b9b95ab2c4980b365f582a665dea08d8)
 set(VELOX_CPR_SOURCE_URL
-    "https://github.com/libcpr/cpr/archive/refs/tags/${VELOX_CPR_VERSION}.tar.gz"
+    "https://emr-public-sh.oss-cn-shanghai.aliyuncs.com/native_spark/cpr-${VELOX_CPR_VERSION}.tar.gz"
 )
 
 resolve_dependency_url(CPR)

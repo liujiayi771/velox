@@ -17,6 +17,7 @@ add_executable(
   BitwiseXorAggregationTest.cpp
   BloomFilterAggAggregateTest.cpp
   DecimalSumAggregateTest.cpp
+  CentralMomentsAggregationTest.cpp
   FirstAggregateTest.cpp
   LastAggregateTest.cpp
   AverageAggregationTest.cpp

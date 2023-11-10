@@ -17,7 +17,7 @@ set(VELOX_GTEST_VERSION 1.13.0)
 set(VELOX_GTEST_BUILD_SHA256_CHECKSUM
     ad7fdba11ea011c1d925b3289cf4af2c66a352e18d4c7264392fead75e919363)
 set(VELOX_GTEST_SOURCE_URL
-    "https://github.com/google/googletest/archive/refs/tags/v${VELOX_GTEST_VERSION}.tar.gz"
+    "https://emr-public-sh.oss-cn-shanghai.aliyuncs.com/native_spark/v${VELOX_GTEST_VERSION}.tar.gz"
 )
 
 resolve_dependency_url(GTEST)

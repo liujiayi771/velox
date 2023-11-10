@@ -59,7 +59,7 @@ if(VELOX_ENABLE_ARROW)
   set(VELOX_ARROW_BUILD_SHA256_CHECKSUM
       4eb0da50ec071baf15fc163cb48058931e006f1c862c8def0e180fd07d531021)
   set(VELOX_ARROW_SOURCE_URL
-      "https://archive.apache.org/dist/arrow/arrow-${VELOX_ARROW_BUILD_VERSION}/apache-arrow-${VELOX_ARROW_BUILD_VERSION}.tar.gz"
+      "https://emr-public-sh.oss-cn-shanghai.aliyuncs.com/native_spark/apache-arrow-${VELOX_ARROW_BUILD_VERSION}.tar.gz"
   )
 
   resolve_dependency_url(ARROW)

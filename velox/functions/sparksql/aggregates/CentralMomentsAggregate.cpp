@@ -14,37 +14,22 @@
  * limitations under the License.
  */
 
-#include "velox/exec/Aggregate.h"
 #include "velox/functions/lib/aggregates/CentralMomentsAggregatesBase.h"
-#include "velox/functions/prestosql/aggregates/AggregateNames.h"
+#include "velox/functions/sparksql/aggregates/CentralMomentsAggregate.h"
 
 using namespace facebook::velox::functions::aggregate;
 
-namespace facebook::velox::aggregate::prestosql {
+namespace facebook::velox::functions::aggregate::sparksql {
 
+namespace {
 struct SkewnessResultAccessor {
   static bool hasResult(const CentralMomentsAccumulator& accumulator) {
-    return accumulator.count() >= 3;
+    return accumulator.count() >= 1 && accumulator.m2() != 0;
   }
 
   static double result(const CentralMomentsAccumulator& accumulator) {
     return std::sqrt(accumulator.count()) * accumulator.m3() /
         std::pow(accumulator.m2(), 1.5);
-  }
-};
-
-struct KurtosisResultAccessor {
-  static bool hasResult(const CentralMomentsAccumulator& accumulator) {
-    return accumulator.count() >= 4;
-  }
-
-  static double result(const CentralMomentsAccumulator& accumulator) {
-    double count = accumulator.count();
-    double m2 = accumulator.m2();
-    double m4 = accumulator.m4();
-    return ((count - 1) * count * (count + 1)) / ((count - 2) * (count - 3)) *
-        m4 / (m2 * m2) -
-        3 * ((count - 1) * (count - 1)) / ((count - 2) * (count - 3));
   }
 };
 
@@ -91,12 +76,10 @@ exec::AggregateRegistrationResult registerCentralMoments(
                   resultType);
             case TypeKind::DOUBLE:
               return std::make_unique<
-                  CentralMomentsAggregateBase<double, TResultAccessor>>(
-                  resultType);
+                  CentralMomentsAggregateBase<double, TResultAccessor>>(resultType);
             case TypeKind::REAL:
               return std::make_unique<
-                  CentralMomentsAggregateBase<float, TResultAccessor>>(
-                  resultType);
+                  CentralMomentsAggregateBase<float, TResultAccessor>>(resultType);
             default:
               VELOX_UNSUPPORTED(
                   "Unsupported input type: {}. "
@@ -110,15 +93,15 @@ exec::AggregateRegistrationResult registerCentralMoments(
               "(count:bigint, m1:double, m2:double, m3:double, m4:double) struct");
           // final agg not use template T, int64_t here has no effect.
           return std::make_unique<
-              CentralMomentsAggregateBase<int64_t, TResultAccessor>>(
-              resultType);
+              CentralMomentsAggregateBase<int64_t, TResultAccessor>>(resultType);
         }
-      });
+      },
+      true);
+}
 }
 
-void registerCentralMomentsAggregates(const std::string& prefix) {
-  registerCentralMoments<KurtosisResultAccessor>(prefix + kKurtosis);
-  registerCentralMoments<SkewnessResultAccessor>(prefix + kSkewness);
+void registerCentralMomentsAggregate(const std::string& prefix) {
+  registerCentralMoments<SkewnessResultAccessor>(prefix + "skewness");
 }
 
-} // namespace facebook::velox::aggregate::prestosql
+} // namespace facebook::velox::functions::aggregate::sparksql

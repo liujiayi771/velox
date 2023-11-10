@@ -17,7 +17,7 @@ set(VELOX_SIMDJSON_VERSION 3.1.5)
 set(VELOX_SIMDJSON_BUILD_SHA256_CHECKSUM
     5b916be17343324426fc467a4041a30151e481700d60790acfd89716ecc37076)
 set(VELOX_SIMDJSON_SOURCE_URL
-    "https://github.com/simdjson/simdjson/archive/refs/tags/v${VELOX_SIMDJSON_VERSION}.tar.gz"
+    "https://emr-public-sh.oss-cn-shanghai.aliyuncs.com/native_spark/simdjson-${VELOX_SIMDJSON_VERSION}.tar.gz"
 )
 
 resolve_dependency_url(SIMDJSON)

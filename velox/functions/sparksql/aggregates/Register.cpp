@@ -19,6 +19,7 @@
 #include "velox/functions/sparksql/aggregates/AverageAggregate.h"
 #include "velox/functions/sparksql/aggregates/BitwiseXorAggregate.h"
 #include "velox/functions/sparksql/aggregates/BloomFilterAggAggregate.h"
+#include "velox/functions/sparksql/aggregates/CentralMomentsAggregate.h"
 #include "velox/functions/sparksql/aggregates/SumAggregate.h"
 #include "velox/functions/sparksql/aggregates/DecimalSumAggregate.h"
 
@@ -43,5 +44,6 @@ void registerAggregateFunctions(
   registerBloomFilterAggAggregate(prefix + "bloom_filter_agg");
   registerAverage(prefix + "avg", registerCompanionFunctions, overwrite);
   registerSum(prefix + "sum", registerCompanionFunctions, overwrite);
+  registerCentralMomentsAggregate(prefix);
 }
 } // namespace facebook::velox::functions::aggregate::sparksql

@@ -17,7 +17,7 @@ set(VELOX_FMT_VERSION 8.0.1)
 set(VELOX_FMT_BUILD_SHA256_CHECKSUM
     b06ca3130158c625848f3fb7418f235155a4d389b2abc3a6245fb01cb0eb1e01)
 set(VELOX_FMT_SOURCE_URL
-    "https://github.com/fmtlib/fmt/archive/${VELOX_FMT_VERSION}.tar.gz")
+    "https://emr-public-sh.oss-cn-shanghai.aliyuncs.com/native_spark/${VELOX_FMT_VERSION}.tar.gz")
 
 resolve_dependency_url(FMT)
 
