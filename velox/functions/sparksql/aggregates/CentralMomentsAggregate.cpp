@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "velox/functions/lib/aggregates/CentralMomentsAggregatesBase.h"
 #include "velox/functions/sparksql/aggregates/CentralMomentsAggregate.h"
+#include "velox/functions/lib/aggregates/CentralMomentsAggregatesBase.h"
 
 using namespace facebook::velox::functions::aggregate;
 
@@ -29,13 +29,15 @@ struct SkewnessResultAccessor {
 
   static double result(const CentralMomentsAccumulator& accumulator) {
     return std::sqrt(accumulator.count()) * accumulator.m3() /
-        std::pow(accumulator.m2(), 1.5);
+        std::sqrt(accumulator.m2() * accumulator.m2() * accumulator.m2());
   }
 };
 
 template <typename TResultAccessor>
 exec::AggregateRegistrationResult registerCentralMoments(
-    const std::string& name) {
+    const std::string& name,
+    bool registerCompanionFunctions,
+    bool overwrite) {
   std::vector<std::shared_ptr<exec::AggregateFunctionSignature>> signatures;
   std::vector<std::string> inputTypes = {
       "smallint", "integer", "bigint", "real", "double"};
@@ -76,10 +78,12 @@ exec::AggregateRegistrationResult registerCentralMoments(
                   resultType);
             case TypeKind::DOUBLE:
               return std::make_unique<
-                  CentralMomentsAggregateBase<double, TResultAccessor>>(resultType);
+                  CentralMomentsAggregateBase<double, TResultAccessor>>(
+                  resultType);
             case TypeKind::REAL:
               return std::make_unique<
-                  CentralMomentsAggregateBase<float, TResultAccessor>>(resultType);
+                  CentralMomentsAggregateBase<float, TResultAccessor>>(
+                  resultType);
             default:
               VELOX_UNSUPPORTED(
                   "Unsupported input type: {}. "
@@ -93,15 +97,21 @@ exec::AggregateRegistrationResult registerCentralMoments(
               "(count:bigint, m1:double, m2:double, m3:double, m4:double) struct");
           // final agg not use template T, int64_t here has no effect.
           return std::make_unique<
-              CentralMomentsAggregateBase<int64_t, TResultAccessor>>(resultType);
+              CentralMomentsAggregateBase<int64_t, TResultAccessor>>(
+              resultType);
         }
       },
-      true);
+      registerCompanionFunctions,
+      overwrite);
 }
-}
+} // namespace
 
-void registerCentralMomentsAggregate(const std::string& prefix) {
-  registerCentralMoments<SkewnessResultAccessor>(prefix + "skewness");
+void registerCentralMomentsAggregate(
+    const std::string& prefix,
+    bool registerCompanionFunctions,
+    bool overwrite) {
+  registerCentralMoments<SkewnessResultAccessor>(
+      prefix + "skewness", registerCompanionFunctions, overwrite);
 }
 
 } // namespace facebook::velox::functions::aggregate::sparksql
