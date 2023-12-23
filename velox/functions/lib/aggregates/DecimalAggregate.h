@@ -74,11 +74,11 @@ class DecimalAggregate : public exec::Aggregate {
   explicit DecimalAggregate(TypePtr resultType) : exec::Aggregate(resultType) {}
 
   int32_t accumulatorFixedWidthSize() const override {
-    return sizeof(LongDecimalWithOverflowState);
+    return sizeof(DecimalAggregate);
   }
 
   int32_t accumulatorAlignmentSize() const override {
-    return alignof(LongDecimalWithOverflowState);
+    return static_cast<int32_t>(sizeof(int128_t));
   }
 
   void initializeNewGroups(
@@ -287,9 +287,7 @@ class DecimalAggregate : public exec::Aggregate {
   }
 
   virtual TResultType computeFinalValue(
-      LongDecimalWithOverflowState* accumulator) {
-    return 0;
-  };
+      LongDecimalWithOverflowState* accumulator) = 0;
 
   void extractValues(char** groups, int32_t numGroups, VectorPtr* result)
       override {
@@ -331,12 +329,11 @@ class DecimalAggregate : public exec::Aggregate {
     accumulator->count += 1;
   }
 
- protected:
+ private:
   inline LongDecimalWithOverflowState* decimalAccumulator(char* group) {
     return exec::Aggregate::value<LongDecimalWithOverflowState>(group);
   }
 
- private:
   DecodedVector decodedRaw_;
   DecodedVector decodedPartial_;
 };
