@@ -16,7 +16,6 @@
 #include "velox/functions/sparksql/aggregates/SumAggregate.h"
 
 #include "velox/functions/lib/aggregates/SumAggregateBase.h"
-#include "velox/functions/sparksql/aggregates/DecimalSumAggregate.h"
 
 using namespace facebook::velox::functions::aggregate;
 
@@ -25,13 +24,7 @@ namespace facebook::velox::functions::aggregate::sparksql {
 namespace {
 template <typename TInput, typename TAccumulator, typename ResultType>
 using SumAggregate = SumAggregateBase<TInput, TAccumulator, ResultType, true>;
-
-TypePtr getDecimalSumType(
-    const TypePtr& resultType,
-    core::AggregationNode::Step step) {
-  return exec::isPartialOutput(step) ? resultType->childAt(0) : resultType;
 }
-} // namespace
 
 exec::AggregateRegistrationResult registerSum(
     const std::string& name,
@@ -47,15 +40,6 @@ exec::AggregateRegistrationResult registerSum(
           .returnType("double")
           .intermediateType("double")
           .argumentType("double")
-          .build(),
-      exec::AggregateFunctionSignatureBuilder()
-          .integerVariable("a_precision")
-          .integerVariable("a_scale")
-          .integerVariable("r_precision", "min(38, a_precision + 10)")
-          .integerVariable("r_scale", "min(38, a_scale)")
-          .argumentType("DECIMAL(a_precision, a_scale)")
-          .intermediateType("ROW(DECIMAL(r_precision, r_scale), boolean)")
-          .returnType("DECIMAL(r_precision, r_scale)")
           .build(),
   };
 
@@ -90,26 +74,13 @@ exec::AggregateRegistrationResult registerSum(
                 BIGINT());
           case TypeKind::BIGINT: {
             if (inputType->isShortDecimal()) {
-              auto sumType = getDecimalSumType(resultType, step);
-              if (sumType->isShortDecimal()) {
-                return std::make_unique<DecimalSumAggregate<int64_t, int64_t>>(
-                    resultType, sumType);
-              } else if (sumType->isLongDecimal()) {
-                return std::make_unique<DecimalSumAggregate<int64_t, int128_t>>(
-                    resultType, sumType);
-              }
+              VELOX_NYI();
             }
             return std::make_unique<SumAggregate<int64_t, int64_t, int64_t>>(
                 BIGINT());
           }
           case TypeKind::HUGEINT: {
-            if (inputType->isLongDecimal()) {
-              auto sumType = getDecimalSumType(resultType, step);
-              // If inputType is long decimal,
-              // its output type always be long decimal.
-              return std::make_unique<DecimalSumAggregate<int128_t, int128_t>>(
-                  resultType, sumType);
-            }
+            VELOX_NYI();
           }
           case TypeKind::REAL:
             if (resultType->kind() == TypeKind::REAL) {
@@ -125,19 +96,6 @@ exec::AggregateRegistrationResult registerSum(
             }
             return std::make_unique<SumAggregate<double, double, double>>(
                 DOUBLE());
-          case TypeKind::ROW: {
-            VELOX_DCHECK(!exec::isRawInput(step));
-            auto sumType = getDecimalSumType(resultType, step);
-            // For intermediate input agg, input intermediate sum type
-            // is equal to final result sum type.
-            if (inputType->childAt(0)->isShortDecimal()) {
-              return std::make_unique<DecimalSumAggregate<int64_t, int64_t>>(
-                  resultType, sumType);
-            } else if (inputType->childAt(0)->isLongDecimal()) {
-              return std::make_unique<DecimalSumAggregate<int128_t, int128_t>>(
-                  resultType, sumType);
-            }
-          }
           default:
             VELOX_CHECK(
                 false,
