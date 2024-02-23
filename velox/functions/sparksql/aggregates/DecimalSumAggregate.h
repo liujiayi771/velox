@@ -34,14 +34,16 @@ class DecimalSumAggregate {
 
   using OutputType = TSumType;
 
-  // Spark's decimal sum doesn't have the concept of a null group, each group is
-  // initialized with an initial value, where sum = 0 and isEmpty = true. The
-  // final agg may fallback to being executed in Spark, so the meaning of the
-  // intermediate data should be consistent with Spark. Therefore, we need to
-  // use the parameter nonNullGroup in writeIntermediateResult to output a null
-  // group as sum = 0, isEmpty = true. nonNullGroup is only available when
-  // default-null behavior is disabled.
+  /// Spark's decimal sum doesn't have the concept of a null group, each group
+  /// is initialized with an initial value, where sum = 0 and isEmpty = true.
+  /// The final agg may fallback to being executed in Spark, so the meaning of
+  /// the intermediate data should be consistent with Spark. Therefore, we need
+  /// to use the parameter nonNullGroup in writeIntermediateResult to output a
+  /// null group as sum = 0, isEmpty = true. nonNullGroup is only available when
+  /// default-null behavior is disabled.
   static constexpr bool default_null_behavior_ = false;
+
+  static constexpr bool aligned_accumulator_ = true;
 
   static bool toIntermediate(
       exec::out_type<Row<TSumType, bool>>& out,
@@ -54,13 +56,13 @@ class DecimalSumAggregate {
     return true;
   }
 
-  // This struct stores the sum of input values, overflow during accumulation,
-  // and a bool value isEmpty used to indicate whether all inputs are null. The
-  // initial value of sum is 0. We need to keep sum unchanged if the input is
-  // null, as sum function ignores null input. If the isEmpty is true, then it
-  // means there were no values to begin with or all the values were null, so
-  // the result will be null. If the isEmpty is false, then if sum is nullopt
-  // that means an overflow has happened, it returns null.
+  /// This struct stores the sum of input values, overflow during accumulation,
+  /// and a bool value isEmpty used to indicate whether all inputs are null. The
+  /// initial value of sum is 0. We need to keep sum unchanged if the input is
+  /// null, as sum function ignores null input. If the isEmpty is true, then it
+  /// means there were no values to begin with or all the values were null, so
+  /// the result will be null. If the isEmpty is false, then if sum is nullopt
+  /// that means an overflow has happened, it returns null.
   struct AccumulatorType {
     std::optional<int128_t> sum{0};
     int64_t overflow{0};
@@ -74,7 +76,7 @@ class DecimalSumAggregate {
       if (!sum.has_value()) {
         return std::nullopt;
       }
-      auto adjustedSum =
+      auto const adjustedSum =
           DecimalUtil::adjustSumForOverflow(sum.value(), overflow);
       constexpr uint8_t maxPrecision = std::is_same_v<TSumType, int128_t>
           ? LongDecimalType::kMaxPrecision
@@ -94,6 +96,12 @@ class DecimalSumAggregate {
       if (!data.has_value()) {
         return false;
       }
+      if (!sum.has_value()) {
+        // sum is initialized to 0. When it is nullopt, it implies that the
+        // input data must not be empty.
+        VELOX_CHECK(!isEmpty)
+        return true;
+      }
       int128_t result;
       overflow +=
           DecimalUtil::addWithOverflow(result, data.value(), sum.value());
@@ -108,8 +116,8 @@ class DecimalSumAggregate {
       if (!other.has_value()) {
         return false;
       }
-      auto otherSum = other.value().template at<0>();
-      auto otherIsEmpty = other.value().template at<1>();
+      auto const otherSum = other.value().template at<0>();
+      auto const otherIsEmpty = other.value().template at<1>();
 
       // isEmpty is never null.
       VELOX_CHECK(otherIsEmpty.has_value());
@@ -118,6 +126,7 @@ class DecimalSumAggregate {
       bool otherOverflow = !otherIsEmpty.value() && !otherSum.has_value();
       if (currentOverflow || otherOverflow) {
         sum = std::nullopt;
+        isEmpty = false;
       } else {
         int128_t result;
         overflow +=
@@ -142,7 +151,7 @@ class DecimalSumAggregate {
               static_cast<TSumType>(finalResult.value()), isEmpty);
         } else {
           // Sum should be set to null on overflow,
-          // and isEmptyshould be set to false.
+          // and isEmpty should be set to false.
           out.template set_null_at<0>();
           out.template get_writer_at<1>() = false;
         }
