@@ -51,6 +51,11 @@ class Aggregate {
     return resultType_;
   }
 
+  virtual void initialize(
+      const std::vector<TypePtr>& rawInputType,
+      const TypePtr& resultType,
+      const std::vector<VectorPtr>& args) {}
+
   // Returns the fixed number of bytes the accumulator takes on a group
   // row. Variable width accumulators will reference the variable
   // width part of the state from the fixed part.

@@ -28,6 +28,11 @@ class AggregateCompanionFunctionBase : public Aggregate {
       const TypePtr& resultType)
       : Aggregate{resultType}, fn_{std::move(fn)} {}
 
+  void initialize(
+      const std::vector<TypePtr>& rawInputType,
+      const TypePtr& resultType,
+      const std::vector<VectorPtr>& args) override;
+
   int32_t accumulatorFixedWidthSize() const override final;
 
   int32_t accumulatorAlignmentSize() const override final;

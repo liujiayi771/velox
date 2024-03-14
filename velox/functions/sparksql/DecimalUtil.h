@@ -211,6 +211,23 @@ class DecimalUtil {
     }
   }
 
+  /// Get the precision and scale after the divide computation, which is itself
+  /// inspired to SQLServer's one, Spark also uses this formulation.
+  /// https://learn.microsoft.com/en-us/sql/t-sql/data-types/precision-scale-and-length-transact-sql
+  /// Assume Divide a(p1, s1) and b(p2, s2).
+  /// The result precision = p1 - s1 + s2 + max(6, s1 + p2 + 1)
+  /// The result scale = max(s1 + p2 + 1, s2 + 6)
+  static std::pair<uint8_t, uint8_t> dividePrecisionScale(
+      const uint8_t aPrecision,
+      const uint8_t aScale,
+      const uint8_t bPrecision,
+      const uint8_t bScale) {
+    uint8_t intDig = aPrecision - aScale + bScale;
+    uint8_t scale = std::max(6, aScale + bPrecision + 1);
+    uint8_t precision = intDig + scale;
+    return adjustPrecisionScale(precision, scale);
+  }
+
  private:
   /// Maintains the max bits that need to be increased for rescaling a value by
   /// certain scale. The calculation relies on the following formula:

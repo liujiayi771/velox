@@ -105,6 +105,13 @@ void AggregateCompanionFunctionBase::extractAccumulators(
   fn_->extractAccumulators(groups, numGroups, result);
 }
 
+void AggregateCompanionFunctionBase::initialize(
+    const std::vector<TypePtr>& rawInputType,
+    const TypePtr& resultType,
+    const std::vector<VectorPtr>& args) {
+  fn_->initialize(rawInputType, resultType, args);
+}
+
 void AggregateCompanionAdapter::PartialFunction::extractValues(
     char** groups,
     int32_t numGroups,
@@ -208,6 +215,14 @@ void AggregateCompanionAdapter::ExtractFunction::apply(
   // Perform per-row aggregation.
   std::vector<vector_size_t> allSelectedRange;
   rows.applyToSelected([&](auto row) { allSelectedRange.push_back(row); });
+
+  std::vector<TypePtr> rawInputTypes;
+  rawInputTypes.reserve(args.size());
+  for (const auto& arg: args) {
+    rawInputTypes.emplace_back(arg->type());
+  }
+
+  fn_->initialize(rawInputTypes, outputType, {});
   fn_->initializeNewGroups(groups, allSelectedRange);
   fn_->enableValidateIntermediateInputs();
   fn_->addIntermediateResults(groups, rows, args, false);

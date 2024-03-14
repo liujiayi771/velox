@@ -44,6 +44,15 @@ class SimpleAggregateAdapter : public Aggregate {
   explicit SimpleAggregateAdapter(TypePtr resultType)
       : Aggregate(std::move(resultType)) {}
 
+  typename FUNC::FunctionState state_;
+
+  void initialize(
+      const std::vector<TypePtr>& rawInputTypes,
+      const TypePtr& resultType,
+      const std::vector<VectorPtr>& constantInputs) override {
+    FUNC::initialize(state_, rawInputTypes, resultType, constantInputs);
+  }
+
   // Assume most aggregate functions have fixed-size accumulators. Functions
   // that
   // have non-fixed-size accumulators should overwrite `is_fixed_size_` in their
@@ -198,7 +207,8 @@ class SimpleAggregateAdapter : public Aggregate {
       folly::Range<const vector_size_t*> indices) override {
     setAllNulls(groups, indices);
     for (auto i : indices) {
-      new (groups[i] + offset_) typename FUNC::AccumulatorType(allocator_);
+      new (groups[i] + offset_)
+          typename FUNC::AccumulatorType(allocator_, state_);
     }
   }
 
@@ -309,12 +319,13 @@ class SimpleAggregateAdapter : public Aggregate {
         if (isNull(groups[i])) {
           writer.commitNull();
         } else {
-          bool nonNull = group->writeIntermediateResult(writer.current());
+          bool nonNull =
+              group->writeIntermediateResult(writer.current(), state_);
           writer.commit(nonNull);
         }
       } else {
         bool nonNull = group->writeIntermediateResult(
-            !isNull(groups[i]), writer.current());
+            !isNull(groups[i]), writer.current(), state_);
         writer.commit(nonNull);
       }
     }
@@ -340,12 +351,12 @@ class SimpleAggregateAdapter : public Aggregate {
         if (isNull(groups[i])) {
           writer.commitNull();
         } else {
-          bool nonNull = group->writeFinalResult(writer.current());
+          bool nonNull = group->writeFinalResult(writer.current(), state_);
           writer.commit(nonNull);
         }
       } else {
-        bool nonNull =
-            group->writeFinalResult(!isNull(groups[i]), writer.current());
+        bool nonNull = group->writeFinalResult(
+            !isNull(groups[i]), writer.current(), state_);
         writer.commit(nonNull);
       }
     }
@@ -384,7 +395,7 @@ class SimpleAggregateAdapter : public Aggregate {
           tracker.emplace(groups[row][rowSizeOffset_], *allocator_);
         }
         auto group = value<typename FUNC::AccumulatorType>(groups[row]);
-        group->addInput(allocator_, std::get<Is>(readers)[row]...);
+        group->addInput(allocator_, std::get<Is>(readers)[row]..., state_);
         clearNull(groups[row]);
       });
     } else {
@@ -397,7 +408,8 @@ class SimpleAggregateAdapter : public Aggregate {
         bool nonNull = group->addInput(
             allocator_,
             OptionalAccessor<typename FUNC::InputType::template type_at<Is>>{
-                &std::get<Is>(readers), (int64_t)row}...);
+                &std::get<Is>(readers), (int64_t)row}...,
+            state_);
         if (nonNull) {
           clearNull(groups[row]);
         }
@@ -424,7 +436,7 @@ class SimpleAggregateAdapter : public Aggregate {
         if constexpr (!accumulator_is_fixed_size_) {
           tracker.emplace(group[rowSizeOffset_], *allocator_);
         }
-        accumulator->addInput(allocator_, std::get<Is>(readers)[row]...);
+        accumulator->addInput(allocator_, std::get<Is>(readers)[row]..., state_);
         clearNull(group);
       });
     } else {
@@ -436,7 +448,7 @@ class SimpleAggregateAdapter : public Aggregate {
         bool nonNull = accumulator->addInput(
             allocator_,
             OptionalAccessor<typename FUNC::InputType::template type_at<Is>>{
-                &std::get<Is>(readers), (int64_t)row}...);
+                &std::get<Is>(readers), (int64_t)row}..., state_);
         if (nonNull) {
           clearNull(group);
         }
@@ -508,7 +520,7 @@ class SimpleAggregateAdapter : public Aggregate {
           tracker.emplace(groups[row][rowSizeOffset_], *allocator_);
         }
         auto group = value<typename FUNC::AccumulatorType>(groups[row]);
-        group->combine(allocator_, reader[row]);
+        group->combine(allocator_, reader[row], state_);
         clearNull(groups[row]);
       });
     } else {
@@ -521,7 +533,8 @@ class SimpleAggregateAdapter : public Aggregate {
         bool nonNull = group->combine(
             allocator_,
             OptionalAccessor<typename FUNC::IntermediateType>{
-                &reader, (int64_t)row});
+                &reader, (int64_t)row},
+            state_);
         if (nonNull) {
           clearNull(groups[row]);
         }
@@ -546,7 +559,7 @@ class SimpleAggregateAdapter : public Aggregate {
         if constexpr (!accumulator_is_fixed_size_) {
           tracker.emplace(group[rowSizeOffset_], *allocator_);
         }
-        accumulator->combine(allocator_, reader[row]);
+        accumulator->combine(allocator_, reader[row], state_);
         clearNull(group);
       });
     } else {
@@ -558,7 +571,7 @@ class SimpleAggregateAdapter : public Aggregate {
         bool nonNull = accumulator->combine(
             allocator_,
             OptionalAccessor<typename FUNC::IntermediateType>{
-                &reader, (int64_t)row});
+                &reader, (int64_t)row}, state_);
         if (nonNull) {
           clearNull(group);
         }

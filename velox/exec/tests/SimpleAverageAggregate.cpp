@@ -42,6 +42,14 @@ class AverageAggregate {
   using OutputType =
       std::conditional_t<std::is_same_v<T, float>, float, double>;
 
+  struct FunctionState {};
+
+  static void initialize(
+      FunctionState& state,
+      const std::vector<TypePtr>& rawInputTypes,
+      const TypePtr& resultType,
+      const std::vector<VectorPtr>& constantInputs) {}
+
   static bool toIntermediate(
       exec::out_type<Row<double, int64_t>>& out,
       exec::arg_type<T> in) {

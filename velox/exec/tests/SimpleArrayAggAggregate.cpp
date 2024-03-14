@@ -56,6 +56,14 @@ class ArrayAggAggregate {
   // Type of output vector.
   using OutputType = Array<Generic<T1>>;
 
+  struct FunctionState {};
+
+  static void initialize(
+      FunctionState& state,
+      const std::vector<TypePtr>& rawInputTypes,
+      const TypePtr& resultType,
+      const std::vector<VectorPtr>& constantInputs) {}
+
   static constexpr bool default_null_behavior_ = false;
 
   static bool toIntermediate(

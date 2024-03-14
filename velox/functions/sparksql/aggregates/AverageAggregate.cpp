@@ -16,6 +16,7 @@
 
 #include "velox/functions/sparksql/aggregates/AverageAggregate.h"
 #include "velox/functions/lib/aggregates/AverageAggregateBase.h"
+#include "velox/functions/sparksql/aggregates/DecimalAverageAggregate.h"
 
 using namespace facebook::velox::functions::aggregate;
 
@@ -74,6 +75,25 @@ class AverageAggregate
   }
 };
 
+std::unique_ptr<exec::Aggregate> getDecimalAverageAggregate(
+    const TypePtr& rawInputType,
+    const TypePtr& resultType) {
+  VELOX_USER_CHECK(rawInputType->isDecimal());
+  auto avgType = getAvgType(rawInputType);
+  if (rawInputType->isShortDecimal()) {
+    if (avgType->isShortDecimal()) {
+      return std::make_unique<exec::SimpleAggregateAdapter<
+          DecimalAverageAggregate<int64_t, int64_t>>>(resultType);
+    } else {
+      return std::make_unique<exec::SimpleAggregateAdapter<
+          DecimalAverageAggregate<int64_t, int128_t>>>(resultType);
+    }
+  } else {
+    return std::make_unique<exec::SimpleAggregateAdapter<
+        DecimalAverageAggregate<int128_t, int128_t>>>(resultType);
+  }
+}
+
 } // namespace
 
 /// Count is BIGINT() while sum and the final aggregates type depends on
@@ -99,13 +119,26 @@ exec::AggregateRegistrationResult registerAverage(
                              .build());
   }
 
-  signatures.push_back(exec::AggregateFunctionSignatureBuilder()
-                           .integerVariable("a_precision")
-                           .integerVariable("a_scale")
-                           .argumentType("DECIMAL(a_precision, a_scale)")
-                           .intermediateType("varbinary")
-                           .returnType("DECIMAL(a_precision, a_scale)")
-                           .build());
+  signatures.push_back(
+      exec::AggregateFunctionSignatureBuilder()
+          .integerVariable("a_precision")
+          .integerVariable("a_scale")
+          .integerVariable("i_precision", "min(38, a_precision + 10)")
+          .integerVariable("r_precision", "min(38, a_precision + 4)")
+          .integerVariable("r_scale", "min(38, a_scale + 4)")
+          .argumentType("DECIMAL(a_precision, a_scale)")
+          .intermediateType("ROW(DECIMAL(i_precision, a_scale), bigint)")
+          .returnType("DECIMAL(r_precision, r_scale)")
+          .build());
+
+  signatures.push_back(
+      exec::AggregateFunctionSignatureBuilder()
+          .integerVariable("a_precision")
+          .integerVariable("a_scale")
+          .argumentType("DECIMAL(a_precision, a_scale)")
+          .intermediateType("ROW(DECIMAL(a_precision, a_scale), BIGINT)")
+          .returnType("DECIMAL(a_precision, a_scale)")
+          .build());
 
   return exec::registerAggregateFunction(
       name,
@@ -118,7 +151,7 @@ exec::AggregateRegistrationResult registerAverage(
           -> std::unique_ptr<exec::Aggregate> {
         VELOX_CHECK_LE(
             argTypes.size(), 1, "{} takes at most one argument", name);
-        auto inputType = argTypes[0];
+        const auto& inputType = argTypes[0];
         if (exec::isRawInput(step)) {
           switch (inputType->kind()) {
             case TypeKind::SMALLINT:
@@ -129,16 +162,25 @@ exec::AggregateRegistrationResult registerAverage(
                   AverageAggregate<int32_t, double, double>>(resultType);
             case TypeKind::BIGINT: {
               if (inputType->isShortDecimal()) {
-                return std::make_unique<DecimalAverageAggregateBase<int64_t>>(
-                    resultType);
+                auto [p, s] = getDecimalPrecisionScale(*inputType.get());
+                // Spark has an optimization rule named DecimalAggregate that
+                // converts input data to a Long for average calculation when
+                // the input data is of type decimal and the precision is <= 11.
+                // Therefore, the precision of the decimal inputs received by
+                // the decimal average is guaranteed to be > 11. Since the
+                // precision of the intermediate sum is input precision + 10, it
+                // will definitely be > 21, which means the intermediate sum
+                // will always be a long decimal. We can directly assume that
+                // the physical type of the intermediate sum is int128_t.
+                VELOX_USER_CHECK_GT(p, 11);
+                return getDecimalAverageAggregate(inputType, resultType);
               }
               return std::make_unique<
                   AverageAggregate<int64_t, double, double>>(resultType);
             }
             case TypeKind::HUGEINT: {
               if (inputType->isLongDecimal()) {
-                return std::make_unique<DecimalAverageAggregateBase<int128_t>>(
-                    resultType);
+                return getDecimalAverageAggregate(inputType, resultType);
               }
               VELOX_NYI();
             }
@@ -162,27 +204,24 @@ exec::AggregateRegistrationResult registerAverage(
                   resultType);
             case TypeKind::DOUBLE:
             case TypeKind::ROW:
+              if (inputType->childAt(0)->isDecimal()) {
+                return std::make_unique<
+                    exec::SimpleAggregateAdapter<DecimalAverageAggregate<
+                        int128_t /* unused */,
+                        int128_t /* unused */>>>(resultType);
+              }
               return std::make_unique<
                   AverageAggregate<int64_t, double, double>>(resultType);
             case TypeKind::BIGINT:
-              return std::make_unique<DecimalAverageAggregateBase<int64_t>>(
+              VELOX_USER_CHECK(resultType->isShortDecimal());
+              return std::make_unique<exec::SimpleAggregateAdapter<
+                  DecimalAverageAggregate<int64_t /* unused */, int64_t>>>(
                   resultType);
             case TypeKind::HUGEINT:
-              return std::make_unique<DecimalAverageAggregateBase<int128_t>>(
+              VELOX_USER_CHECK(resultType->isLongDecimal());
+              return std::make_unique<exec::SimpleAggregateAdapter<
+                  DecimalAverageAggregate<int128_t /* unused */, int128_t>>>(
                   resultType);
-            case TypeKind::VARBINARY:
-              if (inputType->isLongDecimal()) {
-                return std::make_unique<DecimalAverageAggregateBase<int128_t>>(
-                    resultType);
-              } else if (
-                  inputType->isShortDecimal() ||
-                  inputType->kind() == TypeKind::VARBINARY) {
-                // If the input and out type are VARBINARY, then the
-                // LongDecimalWithOverflowState is used and the template type
-                // does not matter.
-                return std::make_unique<DecimalAverageAggregateBase<int64_t>>(
-                    resultType);
-              }
             default:
               VELOX_FAIL(
                   "Unsupported result type for final aggregation: {}",

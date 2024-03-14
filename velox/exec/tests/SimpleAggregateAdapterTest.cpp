@@ -354,6 +354,13 @@ class CountNullsAggregate {
   using InputType = Row<double>; // Input vector type wrapped in Row.
   using IntermediateType = int64_t; // Intermediate result type.
   using OutputType = int64_t; // Output vector type.
+  struct FunctionState {};
+
+  static void initialize(
+      FunctionState& state,
+      const std::vector<TypePtr>& rawInputTypes,
+      const TypePtr& resultType,
+      const std::vector<VectorPtr>& constantInputs) {}
 
   static constexpr bool default_null_behavior_ = false;
 

@@ -158,6 +158,8 @@ class FunctionSignature {
     return variables_;
   }
 
+  virtual void validate();
+
   // This tests syntactic equality not semantic equality
   // For example, even if only the names of the variables are
   // different the signatures are considered not equal (array(K) != array(V))
@@ -203,6 +205,8 @@ class AggregateFunctionSignature : public FunctionSignature {
   }
 
   std::string toString() const override;
+
+  void validate() override;
 
  private:
   const TypeSignature intermediateType_;
