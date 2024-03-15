@@ -81,6 +81,17 @@ std::unique_ptr<exec::Aggregate> getDecimalAverageAggregate(
   VELOX_USER_CHECK(rawInputType->isDecimal());
   auto avgType = getAvgType(rawInputType);
   if (rawInputType->isShortDecimal()) {
+    auto [p, s] = getDecimalPrecisionScale(*rawInputType.get());
+    // Spark has an optimization rule named DecimalAggregate that
+    // converts input data to a Long for average calculation when
+    // the input data is of type decimal and the precision is <= 11.
+    // Therefore, the precision of the decimal inputs received by
+    // the decimal average is guaranteed to be > 11. Since the
+    // precision of the intermediate sum is input precision + 10, it
+    // will definitely be > 21, which means the intermediate sum
+    // will always be a long decimal. We can directly assume that
+    // the physical type of the intermediate sum is int128_t.
+    VELOX_USER_CHECK_GT(p, 11);
     if (avgType->isShortDecimal()) {
       return std::make_unique<exec::SimpleAggregateAdapter<
           DecimalAverageAggregate<int64_t, int64_t>>>(resultType);
@@ -162,17 +173,6 @@ exec::AggregateRegistrationResult registerAverage(
                   AverageAggregate<int32_t, double, double>>(resultType);
             case TypeKind::BIGINT: {
               if (inputType->isShortDecimal()) {
-                auto [p, s] = getDecimalPrecisionScale(*inputType.get());
-                // Spark has an optimization rule named DecimalAggregate that
-                // converts input data to a Long for average calculation when
-                // the input data is of type decimal and the precision is <= 11.
-                // Therefore, the precision of the decimal inputs received by
-                // the decimal average is guaranteed to be > 11. Since the
-                // precision of the intermediate sum is input precision + 10, it
-                // will definitely be > 21, which means the intermediate sum
-                // will always be a long decimal. We can directly assume that
-                // the physical type of the intermediate sum is int128_t.
-                VELOX_USER_CHECK_GT(p, 11);
                 return getDecimalAverageAggregate(inputType, resultType);
               }
               return std::make_unique<
