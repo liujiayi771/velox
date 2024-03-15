@@ -24,7 +24,6 @@ static TypePtr getSumType(const TypePtr& rawInputType) {
   if (rawInputType->isRow()) {
     return rawInputType->childAt(0);
   }
-  VELOX_USER_CHECK(rawInputType->isDecimal());
   auto [p, s] = getDecimalPrecisionScale(*rawInputType.get());
   // In Spark,
   // sum precision = input precision + 10
@@ -33,7 +32,6 @@ static TypePtr getSumType(const TypePtr& rawInputType) {
 }
 
 static TypePtr getAvgType(const TypePtr& rawInputType) {
-  VELOX_USER_CHECK(rawInputType->isDecimal());
   auto [p, s] = getDecimalPrecisionScale(*rawInputType.get());
   // In Spark,
   // sum precision = input precision + 4
@@ -120,12 +118,8 @@ class DecimalAverageAggregate {
         return std::nullopt;
       }
 
-      VELOX_USER_CHECK(
-          state.resultType->isDecimal(),
-          "resultType must be decimal type, but found");
       auto [resultPrecision, resultScale] =
           getDecimalPrecisionScale(*state.resultType.get());
-      VELOX_USER_CHECK(state.sumType->isDecimal());
       auto [sumPrecision, sumScale] =
           getDecimalPrecisionScale(*state.sumType.get());
 

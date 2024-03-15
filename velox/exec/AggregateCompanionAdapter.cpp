@@ -60,6 +60,13 @@ void AggregateCompanionFunctionBase::clearInternal() {
   fn_->clear();
 }
 
+void AggregateCompanionFunctionBase::initialize(
+    const std::vector<TypePtr>& rawInputType,
+    const TypePtr& resultType,
+    const std::vector<VectorPtr>& args) {
+  fn_->initialize(rawInputType, resultType, args);
+}
+
 void AggregateCompanionFunctionBase::initializeNewGroups(
     char** groups,
     folly::Range<const vector_size_t*> indices) {
@@ -103,13 +110,6 @@ void AggregateCompanionFunctionBase::extractAccumulators(
     int32_t numGroups,
     VectorPtr* result) {
   fn_->extractAccumulators(groups, numGroups, result);
-}
-
-void AggregateCompanionFunctionBase::initialize(
-    const std::vector<TypePtr>& rawInputType,
-    const TypePtr& resultType,
-    const std::vector<VectorPtr>& args) {
-  fn_->initialize(rawInputType, resultType, args);
 }
 
 void AggregateCompanionAdapter::PartialFunction::extractValues(
