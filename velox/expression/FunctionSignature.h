@@ -158,7 +158,7 @@ class FunctionSignature {
     return variables_;
   }
 
-  virtual void validate();
+  virtual void validate(std::unordered_set<std::string> usedVariables = {});
 
   // This tests syntactic equality not semantic equality
   // For example, even if only the names of the variables are
@@ -173,7 +173,6 @@ class FunctionSignature {
   // Return a string of the list of argument types.
   std::string argumentsToString() const;
 
- private:
   const std::unordered_map<std::string, SignatureVariable> variables_;
   const TypeSignature returnType_;
   const std::vector<TypeSignature> argumentTypes_;
@@ -206,7 +205,7 @@ class AggregateFunctionSignature : public FunctionSignature {
 
   std::string toString() const override;
 
-  void validate() override;
+  void validate(std::unordered_set<std::string> usedVariables = {}) override;
 
  private:
   const TypeSignature intermediateType_;

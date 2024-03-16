@@ -178,8 +178,8 @@ FunctionSignature::FunctionSignature(
       constantArguments_{std::move(constantArguments)},
       variableArity_{variableArity} {}
 
-void FunctionSignature::validate() {
-  std::unordered_set<std::string> usedVariables;
+void FunctionSignature::validate(
+    std::unordered_set<std::string> usedVariables) {
   // Validate the argument types.
   for (const auto& arg : argumentTypes_) {
     // Is base type a type parameter or a built in type ?
@@ -216,36 +216,11 @@ std::string AggregateFunctionSignature::toString() const {
   return out.str();
 }
 
-void AggregateFunctionSignature::validate() {
-  // std::unordered_set<std::string> usedVariables;
-  // // Validate the argument types.
-  // for (const auto& arg : argumentTypes_) {
-  //   // Is base type a type parameter or a built in type ?
-  //   validateBaseTypeAndCollectTypeParams(variables_, arg, usedVariables,
-  //   false);
-  // }
-  //
-  // // All type variables should apear in the inputs arguments.
-  // for (auto& [name, variable] : variables_) {
-  //   if (variable.isTypeParameter()) {
-  //     VELOX_USER_CHECK(
-  //         usedVariables.count(name),
-  //         "Some type variables are not used in the inputs");
-  //   }
-  // }
-  //
-  // validateBaseTypeAndCollectTypeParams(
-  //     variables_, returnType_, usedVariables, true);
-  //
-  // VELOX_USER_CHECK_EQ(
-  //     usedVariables.size(),
-  //     variables_.size(),
-  //     "Some integer variables are not used");
-  //
-  // VELOX_USER_CHECK_EQ(
-  //     argumentTypes_.size(),
-  //     constantArguments_.size(),
-  //     "Argument types size is not equal to constant flags");
+void AggregateFunctionSignature::validate(
+    std::unordered_set<std::string> usedVariables) {
+  validateBaseTypeAndCollectTypeParams(
+      variables_, intermediateType_, usedVariables, false);
+  FunctionSignature::validate(usedVariables);
 }
 
 FunctionSignaturePtr FunctionSignatureBuilder::build() {
