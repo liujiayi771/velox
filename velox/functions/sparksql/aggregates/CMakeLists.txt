@@ -17,6 +17,7 @@ add_library(
   BitwiseXorAggregate.cpp
   BloomFilterAggAggregate.cpp
   CentralMomentsAggregate.cpp
+  CollectSetAggregate.cpp
   FirstLastAggregate.cpp
   MinMaxByAggregate.cpp
   Register.cpp

@@ -19,11 +19,12 @@
 #include "velox/common/memory/HashStringAllocator.h"
 #include "velox/exec/AddressableNonNullValueList.h"
 #include "velox/exec/Strings.h"
+#include "velox/expression/ComplexViewTypes.h"
 #include "velox/vector/ComplexVector.h"
 #include "velox/vector/DecodedVector.h"
 #include "velox/vector/FlatVector.h"
 
-namespace facebook::velox::aggregate::prestosql {
+namespace facebook::velox::aggregate {
 
 namespace detail {
 
@@ -69,6 +70,19 @@ struct SetAccumulator {
     } else {
       uniqueValues.insert(
           {decoded.valueAt<T>(index), nullIndex.has_value() ? cnt + 1 : cnt});
+    }
+  }
+
+  void addValue(const exec::OptionalAccessor<Generic<T>>& value) {
+    const auto cnt = uniqueValues.size();
+    if (!value.has_value()) {
+      if (!nullIndex.has_value()) {
+        nullIndex = cnt;
+      } else {
+        VELOX_DCHECK(!value->isNull());
+        uniqueValues.insert(
+            {value.value(), nullIndex.has_value() ? cnt + 1 : cnt});
+      }
     }
   }
 
@@ -359,4 +373,4 @@ template <typename T>
 using SetAccumulator =
     typename detail::SetAccumulatorTypeTraits<T>::AccumulatorType;
 
-} // namespace facebook::velox::aggregate::prestosql
+} // namespace facebook::velox::aggregate
