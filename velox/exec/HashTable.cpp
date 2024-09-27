@@ -1747,7 +1747,7 @@ void HashTable<ignoreNullKeys>::prepareJoinTable(
     // Call analyze to insert all unique values in row container to the
     // table hashers' uniqueValues_;
     if (!analyze()) {
-      setHashMode(HashMode::kHash, 0);
+      setHashMode(HashMode::kHash, 0, spillInputStartPartitionBit);
     }
   }
   otherTables_.reserve(tables.size());
@@ -1783,7 +1783,7 @@ void HashTable<ignoreNullKeys>::prepareJoinTable(
           // Before merging with the current hashers, all values in the row
           // containers of other table need to be inserted into uniqueValues_.
           if (!other->analyze()) {
-            other->setHashMode(HashMode::kHash, 0);
+            other->setHashMode(HashMode::kHash, 0, spillInputStartPartitionBit);
             useValueIds = false;
             break;
           }

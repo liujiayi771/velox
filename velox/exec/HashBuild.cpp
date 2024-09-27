@@ -392,19 +392,16 @@ void HashBuild::addInput(RowVectorPtr input) {
       abandonBuildNoDupHash_ = true;
       table_->joinTableMayHaveDuplicates();
     } else {
-      // Before this step, all rows containing null keys that need to be
-      // excluded have already been excluded. The ignoreNullKeys parameter is
-      // no longer effective.
       table_->prepareForGroupProbe(
           *lookup_,
           input,
           activeRows_,
-          false,
           BaseHashTable::kNoSpillInputStartPartitionBit);
       if (lookup_->rows.empty()) {
         return;
       }
-      table_->groupProbe(*lookup_);
+      table_->groupProbe(
+          *lookup_, BaseHashTable::kNoSpillInputStartPartitionBit);
       return;
     }
   }
@@ -798,7 +795,7 @@ bool HashBuild::finishHashBuild() {
                            : BaseHashTable::kNoSpillInputStartPartitionBit,
         allowParallelJoinBuild ? operatorCtx_->task()->queryCtx()->executor()
                                : nullptr,
-        dropDuplicates_,);
+        dropDuplicates_);
   }
   stats_.wlock()->addRuntimeStat(
       BaseHashTable::kBuildWallNanos,
