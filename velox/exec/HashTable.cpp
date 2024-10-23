@@ -1740,9 +1740,10 @@ void HashTable<ignoreNullKeys>::prepareJoinTable(
   buildExecutor_ = executor;
   if (dropDuplicates) {
     if (table_ != nullptr) {
-      // Set table_ to nullptr to trigger rehash.
+      // Reset table_ and capacity_ to trigger rehash.
       rows_->pool()->freeContiguous(tableAllocation_);
       table_ = nullptr;
+      capacity_ = 0;
     }
     // Call analyze to insert all unique values in row container to the
     // table hashers' uniqueValues_;

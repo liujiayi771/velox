@@ -7176,6 +7176,58 @@ TEST_F(HashJoinTest, antiJoinAbandomBuildNoDupHashEarly) {
       .run();
 }
 
+TEST_F(HashJoinTest, semiJoinDeduplicateResetCapacity) {
+  const int vectorSize = 10, batches = 210;
+  auto probeVectors = makeBatches(batches, [&](int32_t /*unused*/) {
+    return makeRowVector({
+        // Join Key is double -> VectorHasher::typeKindSupportsValueIds will
+        // return false -> HashMode is kHash
+        makeFlatVector<double>(
+            vectorSize, [&](vector_size_t /*row*/) { return rand(); }),
+        makeFlatVector<int64_t>(
+            vectorSize, [&](vector_size_t /*row*/) { return rand(); }),
+    });
+  });
+
+  auto buildVectors = makeBatches(batches, [&](int32_t batch) {
+    return makeRowVector({
+        makeFlatVector<double>(
+            vectorSize, [&](vector_size_t /*row*/) { return rand(); }),
+        makeFlatVector<int64_t>(
+            vectorSize, [&](vector_size_t /*row*/) { return rand(); }),
+    });
+  });
+
+  createDuckDbTable("t", probeVectors);
+  createDuckDbTable("u", buildVectors);
+
+  auto planNodeIdGenerator = std::make_shared<core::PlanNodeIdGenerator>();
+  auto plan = PlanBuilder(planNodeIdGenerator)
+                  .values(probeVectors)
+                  .project({"c0 AS t0", "c1 AS t1"})
+                  .hashJoin(
+                      {"t0"},
+                      {"u0"},
+                      PlanBuilder(planNodeIdGenerator)
+                          .values(buildVectors)
+                          .project({"c0 AS u0", "c1 AS u1"})
+                          .planNode(),
+                      "",
+                      {"t0", "t1", "match"},
+                      core::JoinType::kLeftSemiProject)
+                  .planNode();
+
+  HashJoinBuilder(*pool_, duckDbQueryRunner_, driverExecutor_.get())
+      .config(core::QueryConfig::kAbandonBuildNoDupHashMinRows, "10")
+      .config(core::QueryConfig::kAbandonBuildNoDupHashMinPct, "50")
+      .numDrivers(1)
+      .checkSpillStats(false)
+      .planNode(plan)
+      .referenceQuery(
+          "SELECT t.c0, t.c1, EXISTS (SELECT * FROM u WHERE t.c0 = u.c0) FROM t")
+      .run();
+}
+
 DEBUG_ONLY_TEST_F(
     HashJoinTest,
     failedToReclaimFromHashJoinBuildersInNonReclaimableSection) {
