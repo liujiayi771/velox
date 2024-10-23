@@ -42,10 +42,14 @@ RowTypePtr hashJoinTableType(
     types.emplace_back(inputType->childAt(channel));
   }
 
-  for (auto i = 0; i < inputType->size(); ++i) {
-    if (keyChannelSet.find(i) == keyChannelSet.end()) {
-      names.emplace_back(inputType->nameOf(i));
-      types.emplace_back(inputType->childAt(i));
+  if (!canDropDuplicates(joinNode)) {
+    // For left semi and anti join with no extra filter, hash table does not
+    // store dependent columns.
+    for (auto i = 0; i < inputType->size(); ++i) {
+      if (keyChannelSet.find(i) == keyChannelSet.end()) {
+        names.emplace_back(inputType->nameOf(i));
+        types.emplace_back(inputType->childAt(i));
+      }
     }
   }
 
