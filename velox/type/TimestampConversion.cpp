@@ -841,16 +841,18 @@ Status parserError(const char* str, size_t len) {
       std::string(str, len));
 }
 
-// Spark support an id with one of the prefixes UTC+, UTC-, GMT+, GMT-, UT+ or
+// Spark supports an id with one of the prefixes UTC+, UTC-, GMT+, GMT-, UT+ or
 // UT-, and a suffix in the following formats: h[h], hh[:]mm, hh:mm:ss, hhmmss.
-// This func will check that the suffix format is correct. Furthermore, this
+// This function will check if the suffix format is correct. Furthermore, this
 // function adds the seconds offset to the input timestamp because
 // IANA(https://www.iana.org/time-zones) does not support seconds in the offset.
 bool parseSparkTzWithPrefix(
     std::string& timeZoneName,
     Timestamp& ts,
     size_t start) {
-  VELOX_DCHECK_GE(timeZoneName.length(), start + 2);
+  if (timeZoneName.length() < start + 2) {
+    return false;
+  }
   auto sign = timeZoneName[start];
   std::string_view tzView = timeZoneName;
   std::string_view offset = tzView.substr(start + 1);
@@ -880,7 +882,7 @@ bool parseSparkTzWithPrefix(
     auto lastSep = offset.rfind(':');
     if (lastSep == std::string::npos && offset.length() == 6) {
       // hhmmss
-      // TimeZoneMap::normalizeTimeZoneOffset will normalize hhmm to hh:mm
+      // TimeZoneMap::normalizeTimeZoneOffset will normalize hhmm to hh:mm.
       hm = offset.substr(0, 4);
       s = offset.substr(4);
     } else if (lastSep == 5 && offset.find(':') == 2 && offset.length() == 8) {
@@ -902,7 +904,8 @@ bool parseSparkTzWithPrefix(
     return false;
   }
   if (sec != 0) {
-    // Seconds timezone offset is not support, need to be applied to timestamp.
+    // Seconds timezone offset is not supported,
+    // and needs to be applied to timestamp.
     if (sign == '+') {
       if (ts.getSeconds() - sec < Timestamp::kMinSeconds) {
         return false;
